@@ -22,6 +22,7 @@ IAM_REF="${IAM_REF:-develop}"
 MASTER_DATA_REF="${MASTER_DATA_REF:-develop}"
 FARMER_REGISTRY_REF="${FARMER_REGISTRY_REF:-1.3}"
 NSR_REF="${NSR_REF:-1.1}"
+VSSS_REF="${VSSS_REF:-develop}"
 G2P_BRIDGE_REF="${G2P_BRIDGE_REF:-develop}"
 SPAR_REF="${SPAR_REF:-develop}"
 AWE_REF="${AWE_REF:-develop}"
@@ -89,6 +90,9 @@ clone_repo_key() {
       ;;
     national_social_registry)
       clone_repo "National Social Registry" "https://gitlab.com/openg2p/registry/national-social-registry.git" "$NSR_REF" "national-social-registry"
+      ;;
+    village_social_security_registry)
+      clone_repo "Village Social Security System" "https://github.com/asierNebiyou/openg2p-registry-vsss-extensions.git" "$VSSS_REF" "village-social-security-registry"
       ;;
     g2p_bridge)
       clone_repo "G2P Bridge" "https://github.com/OpenG2P/g2p-bridge.git" "$G2P_BRIDGE_REF" "g2p-bridge"

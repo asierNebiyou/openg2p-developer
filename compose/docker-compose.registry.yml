@@ -413,7 +413,7 @@ services:
 
   vsss-registry-staff-api:
     profiles: [vsss-registry, full]
-    image: ${VSSS_REGISTRY_STAFF_API_IMAGE:-openg2p/openg2p-vsss-staff-api:develop}
+    image: ${VSSS_REGISTRY_STAFF_API_IMAGE:-openg2p/openg2p-vsss-staff-portal-api:develop}
     container_name: openg2p-vsss-registry-staff-api
     extra_hosts:
       - "localhost:host-gateway"

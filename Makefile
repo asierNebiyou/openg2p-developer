@@ -25,7 +25,7 @@ COMPOSE_PROFILES := --profile infra --profile with-redis --profile commons --pro
 	nsr-setup nsr-registry-init nsr-registry-migrate nsr-registry-seed vsss-setup vsss-registry-init vsss-registry-migrate vsss-registry-seed seed-registry iam-init awe-init master-data-init master-data-seed \
 	extension-package extension-setup extension-run extension-init extension-migrate extension-seed clone-profiles \
 	up-infra up-pbms up-farmer-registry up-nsr-registry up-vsss-registry up-farmer-registry-seed up-nsr-registry-seed up-vsss-registry-seed up-bridge up-spar up-full \
-	docker-farmer-up docker-nsr-up docker-vsss-up docker-registry-up docker-registry-init \
+	docker-farmer-up docker-nsr-up docker-vsss-up docker-vsss-build docker-registry-up docker-registry-init \
 	docker-farmer-continue docker-nsr-continue docker-vsss-continue docker-down docker-all-up docker-clean
 
 help: ## Show available targets
@@ -256,6 +256,9 @@ docker-nsr-continue: ## Resume NSR after a failed up (no teardown); RESET_DBS=1 
 
 docker-vsss-up: ## Docker VSSS only: Keycloak+IAM+AWE+MasterData+VSSS + seed (full recreate)
 	@bash scripts/docker-vsss-up.sh
+
+docker-vsss-build: ## Build local VSSS Docker images (staff/partner/celery/db-seed)
+	@bash scripts/docker-vsss-build.sh
 
 docker-vsss-continue: ## Resume VSSS after a failed up (no teardown); RESET_DBS=1 to remigrate
 	@bash scripts/docker-vsss-continue.sh

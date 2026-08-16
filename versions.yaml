@@ -102,7 +102,7 @@ images:
   nsr_db_seed: openg2p/openg2p-nsr-db-seed:1.0.1
 
   # Village Social Security System (VSSS)
-  vsss_staff_api: openg2p/openg2p-vsss-staff-api:develop
+  vsss_staff_api: openg2p/openg2p-vsss-staff-portal-api:develop
   vsss_partner_api: openg2p/openg2p-vsss-partner-api:develop
   vsss_celery: openg2p/openg2p-vsss-celery:develop
   vsss_db_seed: openg2p/openg2p-vsss-db-seed:develop

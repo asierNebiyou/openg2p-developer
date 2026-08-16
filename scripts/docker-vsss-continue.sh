@@ -11,4 +11,5 @@ source "${ROOT_DIR}/scripts/lib/docker-registry.sh"
 docker_registry_resolve_compose
 docker_registry_compose_files
 docker_registry_prepare_env vsss
+bash "${ROOT_DIR}/scripts/docker-vsss-build.sh"
 docker_registry_continue_variant vsss
