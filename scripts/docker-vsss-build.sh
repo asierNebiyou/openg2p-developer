@@ -41,6 +41,24 @@ if [[ "${FORCE_VSSS_BUILD:-0}" != "1" && "$need_build" -eq 0 ]]; then
   exit 0
 fi
 
+
+# Prefer Docker Engine arch over `uname` (Rosetta shells report x86_64 on Apple Silicon).
+if [[ -z "${BUILD_PLATFORM:-}" ]]; then
+  _arch="$(docker version -f '{{.Server.Arch}}' 2>/dev/null || true)"
+  case "${_arch}" in
+    aarch64|arm64) BUILD_PLATFORM="linux/arm64" ;;
+    x86_64|amd64)  BUILD_PLATFORM="linux/amd64" ;;
+    *)
+      case "$(uname -m)" in
+        arm64|aarch64) BUILD_PLATFORM="linux/arm64" ;;
+        *)             BUILD_PLATFORM="linux/amd64" ;;
+      esac
+      ;;
+  esac
+  export BUILD_PLATFORM
+fi
+echo "BUILD_PLATFORM=${BUILD_PLATFORM}"
+
 echo "============================================="
 echo " Building VSSS Docker images"
 echo " Repo: ${PRODUCT_REPO}"
