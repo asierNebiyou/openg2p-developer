@@ -48,7 +48,7 @@ extension_manifest_get() {
 
 extension_manifest_is_builtin_variant() {
   local variant="$1"
-  [[ "$variant" == "farmer-registry" || "$variant" == "national-social-registry" ]]
+  [[ "$variant" == "farmer-registry" || "$variant" == "national-social-registry" || "$variant" == "village-social-security-registry" ]]
 }
 
 extension_manifest_exists() {
@@ -216,7 +216,7 @@ extension_manifest_build_oidc_audiences_json() {
   # Keycloak's default access-token audience (`account`), plus registry UIs.
   # Keep this list short: when Keycloak returns `aud` as an array, IAM requires
   # every listed audience to appear in the token (subset check).
-  local -a items=("iam-staff-portal" "account" "nsr-registry-staff-portal" "farmer-registry-staff-portal")
+  local -a items=("iam-staff-portal" "account" "nsr-registry-staff-portal" "farmer-registry-staff-portal" "vsss-registry-staff-portal")
   local variant manifest client_id
   while IFS= read -r variant; do
     [[ -n "$variant" ]] || continue

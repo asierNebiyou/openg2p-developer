@@ -20,6 +20,7 @@ AWE_API_PORT="${AWE_API_PORT:-8030}"
 AWE_UI_PORT="${AWE_UI_PORT:-8031}"
 MASTER_DATA_API_PORT="${MASTER_DATA_API_PORT:-8042}"
 NSR_MASTER_DATA_API_PORT="${NSR_MASTER_DATA_API_PORT:-8043}"
+VSSS_MASTER_DATA_API_PORT="${VSSS_MASTER_DATA_API_PORT:-8044}"
 
 free_port() {
   local port="$1"
@@ -77,6 +78,7 @@ free_port "${AWE_API_PORT}" "AWE API"
 free_port "${AWE_UI_PORT}" "AWE admin UI"
 case "$VARIANT" in
   national-social-registry) free_port "${NSR_MASTER_DATA_API_PORT}" "${VARIANT} Master Data API" ;;
+  village-social-security-registry) free_port "${VSSS_MASTER_DATA_API_PORT}" "${VARIANT} Master Data API" ;;
   *) free_port "${MASTER_DATA_API_PORT}" "${VARIANT} Master Data API" ;;
 esac
 
@@ -92,6 +94,7 @@ stop_matching_processes "AWE admin UI (vite)" ".openg2p-vite.config.mjs"
 case "$VARIANT" in
   farmer-registry) BEAT_DB_NAME="${FARMER_REGISTRY_DB:-farmer_registry_db}" ;;
   national-social-registry) BEAT_DB_NAME="${NSR_REGISTRY_DB:-nsr_registry_db}" ;;
+  village-social-security-registry) BEAT_DB_NAME="${VSSS_REGISTRY_DB:-vsss_registry_db}" ;;
   *)
     # shellcheck disable=SC1091
     source "${ROOT_DIR}/scripts/lib/extension-manifest.sh"

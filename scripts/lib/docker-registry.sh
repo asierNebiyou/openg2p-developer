@@ -66,12 +66,16 @@ docker_registry_prepare_env() {
   ID_GENERATOR_PORT="${ID_GENERATOR_PORT:-8040}"
   MASTER_DATA_API_PORT="${MASTER_DATA_API_PORT:-8042}"
   NSR_MASTER_DATA_API_PORT="${NSR_MASTER_DATA_API_PORT:-8043}"
+  VSSS_MASTER_DATA_API_PORT="${VSSS_MASTER_DATA_API_PORT:-8044}"
   FARMER_REGISTRY_STAFF_API_PORT="${FARMER_REGISTRY_STAFF_API_PORT:-8001}"
   FARMER_REGISTRY_PARTNER_API_PORT="${FARMER_REGISTRY_PARTNER_API_PORT:-8006}"
   FARMER_REGISTRY_UI_PORT="${FARMER_REGISTRY_UI_PORT:-3001}"
   NSR_REGISTRY_STAFF_API_PORT="${NSR_REGISTRY_STAFF_API_PORT:-8011}"
   NSR_REGISTRY_PARTNER_API_PORT="${NSR_REGISTRY_PARTNER_API_PORT:-8012}"
   NSR_REGISTRY_UI_PORT="${NSR_REGISTRY_UI_PORT:-3002}"
+  VSSS_REGISTRY_STAFF_API_PORT="${VSSS_REGISTRY_STAFF_API_PORT:-8021}"
+  VSSS_REGISTRY_PARTNER_API_PORT="${VSSS_REGISTRY_PARTNER_API_PORT:-8022}"
+  VSSS_REGISTRY_UI_PORT="${VSSS_REGISTRY_UI_PORT:-3020}"
   IAM_STAFF_PORT="${IAM_STAFF_PORT:-8020}"
   AWE_API_PORT="${AWE_API_PORT:-8030}"
   AWE_UI_PORT="${AWE_UI_PORT:-8031}"
@@ -128,6 +132,11 @@ docker_registry_down_variant() {
       seed_profile="nsr-registry-seed"
       label="NSR"
       ;;
+    vsss)
+      profile="vsss-registry"
+      seed_profile="vsss-registry-seed"
+      label="VSSS"
+      ;;
     *)
       echo "Unknown variant for down: ${variant}" >&2
       return 1
@@ -156,6 +165,10 @@ docker_registry_reset_variant_dbs() {
     nsr)
       reg_db="nsr_registry_db"
       md_db="nsr_master_data_db"
+      ;;
+    vsss)
+      reg_db="vsss_registry_db"
+      md_db="vsss_master_data_db"
       ;;
     *)
       echo "Unknown variant for DB reset: ${variant}" >&2
@@ -280,8 +293,19 @@ docker_registry_variant_meta() {
       seed_service="nsr-registry-db-seed"
       mnemonic="nsr-registry-staff-portal"
       ;;
+    vsss)
+      profile="vsss-registry"
+      seed_profile="vsss-registry-seed"
+      staff_port="${VSSS_REGISTRY_STAFF_API_PORT}"
+      partner_port="${VSSS_REGISTRY_PARTNER_API_PORT}"
+      ui_port="${VSSS_REGISTRY_UI_PORT}"
+      master_data_port="${VSSS_MASTER_DATA_API_PORT}"
+      label="Village Social Security System"
+      seed_service="vsss-registry-db-seed"
+      mnemonic="vsss-registry-staff-portal"
+      ;;
     *)
-      echo "Unknown variant: ${variant} (expected farmer|nsr)" >&2
+      echo "Unknown variant: ${variant} (expected farmer|nsr|vsss)" >&2
       return 1
       ;;
   esac
@@ -420,6 +444,7 @@ docker_registry_down_all() {
     --profile infra --profile with-redis --profile commons \
     --profile farmer-registry --profile farmer-registry-seed \
     --profile nsr-registry --profile nsr-registry-seed \
+    --profile vsss-registry --profile vsss-registry-seed \
     --profile pbms --profile bridge --profile spar --profile full \
     down --remove-orphans || true
   echo "  All OpenG2P compose services stopped (volumes kept)."

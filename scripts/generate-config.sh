@@ -41,6 +41,9 @@ NSR_REGISTRY_STAFF_API_PORT="${NSR_REGISTRY_STAFF_API_PORT:-8011}"
 NSR_REGISTRY_UI_PORT="${NSR_REGISTRY_UI_PORT:-3002}"
 MASTER_DATA_API_PORT="${MASTER_DATA_API_PORT:-8042}"
 NSR_MASTER_DATA_API_PORT="${NSR_MASTER_DATA_API_PORT:-8043}"
+VSSS_REGISTRY_STAFF_API_PORT="${VSSS_REGISTRY_STAFF_API_PORT:-8021}"
+VSSS_REGISTRY_UI_PORT="${VSSS_REGISTRY_UI_PORT:-3020}"
+VSSS_MASTER_DATA_API_PORT="${VSSS_MASTER_DATA_API_PORT:-8044}"
 STAFF_PORTAL_UI_PORT="${STAFF_PORTAL_UI_PORT:-3000}"
 IAM_STAFF_PORT="${IAM_STAFF_PORT:-8020}"
 KEYCLOAK_IAM_CLIENT_SECRET="${KEYCLOAK_IAM_CLIENT_SECRET:-dev-iam-staff-secret}"
@@ -65,6 +68,7 @@ REGISTRY_AUTH_ENABLED="${REGISTRY_AUTH_ENABLED:-false}"
 mkdir -p \
   "${GENERATED_DIR}/farmer-registry" \
   "${GENERATED_DIR}/national-social-registry" \
+  "${GENERATED_DIR}/village-social-security-registry" \
   "${GENERATED_DIR}/pbms" \
   "${GENERATED_DIR}/iam/data" \
   "${GENERATED_DIR}/awe" \
@@ -162,6 +166,7 @@ render "${ROOT_DIR}/templates/pbms-odoo.conf.tpl" "${GENERATED_DIR}/odoo/pbms-od
 case "${PBMS_REGISTRY_VARIANT}" in
   farmer-registry) PBMS_REGISTRY_DB_NAME="farmer_registry_db" ;;
   national-social-registry) PBMS_REGISTRY_DB_NAME="nsr_registry_db" ;;
+  village-social-security-registry) PBMS_REGISTRY_DB_NAME="vsss_registry_db" ;;
   *)
     # shellcheck disable=SC1091
     source "${ROOT_DIR}/scripts/lib/extension-manifest.sh"
@@ -231,6 +236,19 @@ render_registry_variant \
   "${REGISTRY_AUTH_ENABLED}" \
   "${NSR_MASTER_DATA_API_PORT}" \
   "openg2p_registry_nsr_extension"
+
+render_registry_variant \
+  "village-social-security-registry" \
+  "vsss_registry_db" \
+  "vsss_master_data_db" \
+  "${VSSS_REGISTRY_STAFF_API_PORT}" \
+  "${VSSS_REGISTRY_UI_PORT}" \
+  "vsss_registry_worker_queue" \
+  "vsss-registry-staff-portal" \
+  "vsss-registry-staff-portal" \
+  "${REGISTRY_AUTH_ENABLED}" \
+  "${VSSS_MASTER_DATA_API_PORT}" \
+  "openg2p_registry_extensions"
 
 # shellcheck disable=SC1091
 source "${ROOT_DIR}/scripts/lib/extension-manifest.sh"

@@ -37,6 +37,10 @@ KEY_TO_ENV = {
     "nsr_partner_api": "NSR_REGISTRY_PARTNER_API_IMAGE",
     "nsr_celery": "NSR_REGISTRY_CELERY_IMAGE",
     "nsr_db_seed": "NSR_REGISTRY_DB_SEED_IMAGE",
+    "vsss_staff_api": "VSSS_REGISTRY_STAFF_API_IMAGE",
+    "vsss_partner_api": "VSSS_REGISTRY_PARTNER_API_IMAGE",
+    "vsss_celery": "VSSS_REGISTRY_CELERY_IMAGE",
+    "vsss_db_seed": "VSSS_REGISTRY_DB_SEED_IMAGE",
     "id_generator": "ID_GENERATOR_IMAGE",
     "pbms": "PBMS_IMAGE",
 }

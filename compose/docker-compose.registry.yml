@@ -1,8 +1,8 @@
 name: openg2p-developer
 
-# Registry Gen2 Docker services (Farmer + NSR).
-# Prefer: make docker-farmer-up  OR  make docker-nsr-up  (each includes seed)
-# Native alternative: make farmer-registry-run / make nsr-registry-run
+# Registry Gen2 Docker services (Farmer + NSR + VSSS).
+# Prefer: make docker-farmer-up / docker-nsr-up / docker-vsss-up (each includes seed)
+# Native alternative: make farmer-registry-run / nsr-registry-run / vsss-registry-run
 
 services:
   # Migrates farmer_master_data_db (geo tables required by db-seed LOAD_GEO_DATA).
@@ -357,6 +357,233 @@ services:
       MD_PGHOST: postgres
       MD_PGPORT: 5432
       MD_PGDATABASE: nsr_master_data_db
+      MD_PGUSER: ${POSTGRES_SUPERUSER:-postgres}
+      MD_PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      AWE_DB_SEED_ENABLED: ${AWE_DB_SEED_ENABLED:-true}
+      AWE_PGHOST: postgres
+      AWE_PGPORT: 5432
+      AWE_PGDATABASE: awe
+      AWE_PGUSER: ${POSTGRES_SUPERUSER:-postgres}
+      AWE_PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      AWE_CALLBACK_SECRET_ID: ${AWE_REGISTRY_CALLBACK_SECRET_ID:-00000000-0000-4000-8000-000000000001}
+      AWE_CALLBACK_HMAC_SECRET: ${AWE_REGISTRY_CALLBACK_HMAC_SECRET:-dev-registry-awe-callback-secret}
+      AWE_CALLBACK_CALLER_SERVICE: ${AWE_CALLBACK_CALLER_SERVICE:-registry}
+      LOAD_SAMPLE_DATA: ${LOAD_SAMPLE_DATA:-false}
+      LOAD_GEO_DATA: ${LOAD_GEO_DATA:-false}
+      LOAD_IMAGES: ${LOAD_IMAGES:-false}
+      LOAD_TEMPLATES: ${LOAD_TEMPLATES:-false}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-admin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-adminsecret}
+      MINIO_SECURE: "false"
+      TEMPLATE_BUCKET_NAME: templates
+      IMAGE_BUCKET_NAME: registrant-photos
+    restart: "no"
+
+  vsss-master-data-api:
+    profiles: [vsss-registry, full]
+    image: ${MASTER_DATA_API_IMAGE:-registry.gitlab.com/openg2p/master-data-service/master-data-api:0.0.0-develop.26}
+    container_name: openg2p-vsss-master-data-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      iam-staff-api:
+        condition: service_healthy
+    env_file:
+      - ../generated/village-social-security-registry/docker/master-data-api.env
+    environment:
+      GEN2_MASTER_DATA_API_HOST: "0.0.0.0"
+      GEN2_MASTER_DATA_API_PORT: "8000"
+      GEN2_MASTER_DATA_API_NO_OF_WORKERS: "2"
+    ports:
+      - "${VSSS_MASTER_DATA_API_PORT:-8044}:8000"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ping')\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 60s
+    restart: unless-stopped
+
+  vsss-registry-staff-api:
+    profiles: [vsss-registry, full]
+    image: ${VSSS_REGISTRY_STAFF_API_IMAGE:-openg2p/openg2p-vsss-staff-api:develop}
+    container_name: openg2p-vsss-registry-staff-api
+    extra_hosts:
+      - "localhost:host-gateway"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      iam-staff-api:
+        condition: service_healthy
+      awe:
+        condition: service_healthy
+      vsss-master-data-api:
+        condition: service_healthy
+    env_file:
+      - ../generated/village-social-security-registry/docker/staff-portal-api.env
+    environment:
+      REGISTRY_STAFF_PORTAL_API_APP_PORT: "8000"
+      STAFF_PORTAL_PORT: "8000"
+    ports:
+      - "${VSSS_REGISTRY_STAFF_API_PORT:-8021}:8000"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ping')\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 60s
+    restart: unless-stopped
+
+  vsss-registry-partner-api:
+    profiles: [vsss-registry, full]
+    image: ${VSSS_REGISTRY_PARTNER_API_IMAGE:-openg2p/openg2p-vsss-partner-api:develop}
+    container_name: openg2p-vsss-registry-partner-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    env_file:
+      - ../generated/village-social-security-registry/docker/partner-api.env
+    environment:
+      REGISTRY_PARTNER_API_PORT: "8000"
+      PARTNER_PORT: "8000"
+    ports:
+      - "${VSSS_REGISTRY_PARTNER_API_PORT:-8022}:8000"
+    restart: unless-stopped
+
+  vsss-registry-celery-worker:
+    profiles: [vsss-registry, full]
+    image: ${VSSS_REGISTRY_CELERY_IMAGE:-openg2p/openg2p-vsss-celery:develop}
+    container_name: openg2p-vsss-registry-celery-worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      id-generator:
+        condition: service_healthy
+    env_file:
+      - ../generated/village-social-security-registry/docker/celery-workers.env
+    environment:
+      CELERY_APP: openg2p_registry_celery_worker.main.celery_app
+      CELERY_OPTS: worker -Q vsss_registry_worker_queue --loglevel=info
+    restart: unless-stopped
+
+  vsss-registry-celery-beat:
+    profiles: [vsss-registry, full]
+    image: ${VSSS_REGISTRY_CELERY_IMAGE:-openg2p/openg2p-vsss-celery:develop}
+    container_name: openg2p-vsss-registry-celery-beat
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - ../generated/village-social-security-registry/docker/celery-beat.env
+    environment:
+      CELERY_APP: openg2p_registry_celery_beat.main.celery_app
+      CELERY_OPTS: worker --beat -Q celery --loglevel=info --schedule=/tmp/celery-beat-schedule.db
+    restart: unless-stopped
+
+  vsss-registry-staff-ui:
+    profiles: [vsss-registry, full]
+    image: ${REGISTRY_STAFF_PORTAL_UI_IMAGE:-openg2p/openg2p-registry-staff-portal-ui:1.1.1}
+    container_name: openg2p-vsss-registry-staff-ui
+    extra_hosts:
+      - "localhost:host-gateway"
+    depends_on:
+      vsss-registry-staff-api:
+        condition: service_healthy
+      iam-staff-api:
+        condition: service_healthy
+    env_file:
+      - ../generated/village-social-security-registry/docker/staff-portal-ui.env
+    environment:
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+    ports:
+      - "${VSSS_REGISTRY_UI_PORT:-3020}:3000"
+    restart: unless-stopped
+
+  farmer-registry-db-seed:
+    profiles: [farmer-registry-seed]
+    image: ${FARMER_REGISTRY_DB_SEED_IMAGE:-openg2p/openg2p-farmer-registry-db-seed:1.2.0}
+    container_name: openg2p-farmer-registry-db-seed
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: farmer_registry_db
+      PGUSER: ${POSTGRES_SUPERUSER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      MD_PGHOST: postgres
+      MD_PGPORT: 5432
+      MD_PGDATABASE: farmer_master_data_db
+      MD_PGUSER: ${POSTGRES_SUPERUSER:-postgres}
+      MD_PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      AWE_DB_SEED_ENABLED: ${AWE_DB_SEED_ENABLED:-true}
+      AWE_PGHOST: postgres
+      AWE_PGPORT: 5432
+      AWE_PGDATABASE: awe
+      AWE_PGUSER: ${POSTGRES_SUPERUSER:-postgres}
+      AWE_PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      AWE_CALLBACK_SECRET_ID: ${AWE_REGISTRY_CALLBACK_SECRET_ID:-00000000-0000-4000-8000-000000000001}
+      AWE_CALLBACK_HMAC_SECRET: ${AWE_REGISTRY_CALLBACK_HMAC_SECRET:-dev-registry-awe-callback-secret}
+      AWE_CALLBACK_CALLER_SERVICE: ${AWE_CALLBACK_CALLER_SERVICE:-registry}
+      LOAD_SAMPLE_DATA: ${LOAD_SAMPLE_DATA:-false}
+      LOAD_GEO_DATA: ${LOAD_GEO_DATA:-false}
+      LOAD_IMAGES: ${LOAD_IMAGES:-false}
+      LOAD_TEMPLATES: ${LOAD_TEMPLATES:-false}
+      MINIO_ENDPOINT: minio:9000
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:-admin}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-adminsecret}
+      MINIO_SECURE: "false"
+      TEMPLATE_BUCKET_NAME: templates
+      IMAGE_BUCKET_NAME: registrant-photos
+    restart: "no"
+
+  vsss-registry-db-seed:
+    profiles: [vsss-registry-seed]
+    image: ${VSSS_REGISTRY_DB_SEED_IMAGE:-openg2p/openg2p-vsss-db-seed:develop}
+    container_name: openg2p-vsss-registry-db-seed
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: vsss_registry_db
+      PGUSER: ${POSTGRES_SUPERUSER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      MD_PGHOST: postgres
+      MD_PGPORT: 5432
+      MD_PGDATABASE: vsss_master_data_db
       MD_PGUSER: ${POSTGRES_SUPERUSER:-postgres}
       MD_PGPASSWORD: ${POSTGRES_PASSWORD:-postgres}
       AWE_DB_SEED_ENABLED: ${AWE_DB_SEED_ENABLED:-true}

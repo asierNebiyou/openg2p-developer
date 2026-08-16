@@ -27,3 +27,5 @@ id_generator:
       id_length: 10
     farmer:
       id_length: 12
+    village:
+      id_length: 10

@@ -31,12 +31,15 @@ FARMER_REGISTRY_STAFF_API_PORT="${FARMER_REGISTRY_STAFF_API_PORT:-8001}"
 FARMER_REGISTRY_UI_PORT="${FARMER_REGISTRY_UI_PORT:-3001}"
 NSR_REGISTRY_STAFF_API_PORT="${NSR_REGISTRY_STAFF_API_PORT:-8011}"
 NSR_REGISTRY_UI_PORT="${NSR_REGISTRY_UI_PORT:-3002}"
+VSSS_REGISTRY_STAFF_API_PORT="${VSSS_REGISTRY_STAFF_API_PORT:-8021}"
+VSSS_REGISTRY_UI_PORT="${VSSS_REGISTRY_UI_PORT:-3020}"
 STAFF_PORTAL_UI_PORT="${STAFF_PORTAL_UI_PORT:-3000}"
 REGISTRY_AUTH_ENABLED="${REGISTRY_AUTH_ENABLED:-false}"
 
 mkdir -p \
   "${GENERATED_DIR}/farmer-registry/docker" \
   "${GENERATED_DIR}/national-social-registry/docker" \
+  "${GENERATED_DIR}/village-social-security-registry/docker" \
   "${GENERATED_DIR}/iam/docker" \
   "${GENERATED_DIR}/awe/docker/config" \
   "${GENERATED_DIR}/staff-portal/docker"
@@ -132,6 +135,19 @@ render_registry_variant \
   "nsr-registry-staff-portal" \
   "nsr-registry-staff-api" \
   "nsr-master-data-api" \
+  "${REGISTRY_AUTH_ENABLED}"
+
+render_registry_variant \
+  "village-social-security-registry" \
+  "vsss_registry_db" \
+  "vsss_master_data_db" \
+  "${VSSS_REGISTRY_STAFF_API_PORT}" \
+  "${VSSS_REGISTRY_UI_PORT}" \
+  "vsss_registry_worker_queue" \
+  "vsss-registry-staff-portal" \
+  "vsss-registry-staff-portal" \
+  "vsss-registry-staff-api" \
+  "vsss-master-data-api" \
   "${REGISTRY_AUTH_ENABLED}"
 
 render "${ROOT_DIR}/templates/docker/iam-staff-portal-api.env.tpl" \

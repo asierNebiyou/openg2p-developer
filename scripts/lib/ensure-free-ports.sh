@@ -115,7 +115,7 @@ ensure_host_port() {
   fi
 }
 
-# Ensure all Docker host ports for the given variant (farmer|nsr|both).
+# Ensure all Docker host ports for the given variant (farmer|nsr|vsss|both).
 docker_registry_ensure_ports() {
   local variant="${1:-both}"
   PORTS_CHANGED=0
@@ -128,6 +128,7 @@ docker_registry_ensure_ports() {
   _reserve_port 3000
   _reserve_port 3001
   _reserve_port 3002
+  _reserve_port 3020
 
   ensure_host_port POSTGRES_PORT "${POSTGRES_PORT:-5433}" "Postgres"
   ensure_host_port REDIS_PORT "${REDIS_PORT:-6379}" "Redis"
@@ -137,6 +138,7 @@ docker_registry_ensure_ports() {
   ensure_host_port ID_GENERATOR_PORT "${ID_GENERATOR_PORT:-8040}" "ID Generator"
   ensure_host_port MASTER_DATA_API_PORT "${MASTER_DATA_API_PORT:-8042}" "Farmer Master Data"
   ensure_host_port NSR_MASTER_DATA_API_PORT "${NSR_MASTER_DATA_API_PORT:-8043}" "NSR Master Data"
+  ensure_host_port VSSS_MASTER_DATA_API_PORT "${VSSS_MASTER_DATA_API_PORT:-8044}" "VSSS Master Data"
   ensure_host_port IAM_STAFF_PORT "${IAM_STAFF_PORT:-8020}" "IAM"
   ensure_host_port AWE_API_PORT "${AWE_API_PORT:-8030}" "AWE API"
   ensure_host_port AWE_UI_PORT "${AWE_UI_PORT:-8031}" "AWE UI"
@@ -157,6 +159,11 @@ docker_registry_ensure_ports() {
       ensure_host_port NSR_REGISTRY_UI_PORT 3002 "NSR UI"
       _env_set_var "${ROOT_DIR}/.env" FARMER_REGISTRY_UI_PORT 3001
       export FARMER_REGISTRY_UI_PORT=3001
+      ;;
+    vsss)
+      ensure_host_port VSSS_REGISTRY_STAFF_API_PORT "${VSSS_REGISTRY_STAFF_API_PORT:-8021}" "VSSS API"
+      ensure_host_port VSSS_REGISTRY_PARTNER_API_PORT "${VSSS_REGISTRY_PARTNER_API_PORT:-8022}" "VSSS partner"
+      ensure_host_port VSSS_REGISTRY_UI_PORT 3020 "VSSS UI"
       ;;
     both|*)
       ensure_host_port FARMER_REGISTRY_STAFF_API_PORT "${FARMER_REGISTRY_STAFF_API_PORT:-8001}" "Farmer API"

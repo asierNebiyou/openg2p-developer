@@ -55,6 +55,12 @@ repos:
     path: national-social-registry
     extension_path: nsr-extension
 
+  village_social_security_registry:
+    url: https://github.com/asierNebiyou/openg2p-registry-vsss-extensions.git
+    ref: develop
+    path: village-social-security-registry
+    extension_path: openg2p-registry-vsss-extension
+
   g2p_bridge:
     url: https://github.com/OpenG2P/g2p-bridge.git
     ref: develop
@@ -95,6 +101,12 @@ images:
   nsr_celery: openg2p/openg2p-nsr-celery:1.0.1
   nsr_db_seed: openg2p/openg2p-nsr-db-seed:1.0.1
 
+  # Village Social Security System (VSSS)
+  vsss_staff_api: openg2p/openg2p-vsss-staff-api:develop
+  vsss_partner_api: openg2p/openg2p-vsss-partner-api:develop
+  vsss_celery: openg2p/openg2p-vsss-celery:develop
+  vsss_db_seed: openg2p/openg2p-vsss-db-seed:develop
+
   # Other stack images
   pbms: openg2p/openg2p-pbms-core:develop
   g2p_bridge_partner_api: openg2p/g2p-bridge-partner-api:develop
@@ -131,6 +143,11 @@ profiles:
     description: National Social Registry Gen2 (platform + nsr-extension)
     requires: [infra, commons]
     compose_profiles: [infra, with-redis, commons, nsr-registry]
+
+  village_social_security_registry:
+    description: Village Social Security System Gen2 (platform + vsss-extension)
+    requires: [infra, commons]
+    compose_profiles: [infra, with-redis, commons, vsss-registry]
 
   bridge:
     description: G2P Bridge APIs, Celery, example bank

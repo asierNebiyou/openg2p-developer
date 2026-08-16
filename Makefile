@@ -10,7 +10,7 @@ COMPOSE_FILES := \
 	-f compose/docker-compose.bridge.yml \
 	-f compose/docker-compose.spar.yml
 
-COMPOSE_PROFILES := --profile infra --profile with-redis --profile commons --profile pbms --profile farmer-registry --profile nsr-registry --profile farmer-registry-seed --profile nsr-registry-seed --profile bridge --profile spar --profile full
+COMPOSE_PROFILES := --profile infra --profile with-redis --profile commons --profile pbms --profile farmer-registry --profile nsr-registry --profile vsss-registry --profile farmer-registry-seed --profile nsr-registry-seed --profile vsss-registry-seed --profile bridge --profile spar --profile full
 
 .DEFAULT_GOAL := help
 
@@ -20,13 +20,13 @@ COMPOSE_PROFILES := --profile infra --profile with-redis --profile commons --pro
 	pbms-run pbms-stop free-native-stack free-spar-ports \
 	start-pbms-bg-tasks start-spar start-bridge \
 	verify-native-stack verify-pbms verify-registry verify-bridge verify-spar retry-bridge-fa \
-	farmer-registry-run nsr-registry-run bridge-run spar-run iam-run awe-run \
+	farmer-registry-run nsr-registry-run vsss-registry-run bridge-run spar-run iam-run awe-run \
 	farmer-setup farmer-registry-init farmer-registry-migrate farmer-registry-seed farmer-registry-fix-seed-enums farmer-registry-validate-seed \
-	nsr-setup nsr-registry-init nsr-registry-migrate nsr-registry-seed seed-registry iam-init awe-init master-data-init master-data-seed \
+	nsr-setup nsr-registry-init nsr-registry-migrate nsr-registry-seed vsss-setup vsss-registry-init vsss-registry-migrate vsss-registry-seed seed-registry iam-init awe-init master-data-init master-data-seed \
 	extension-package extension-setup extension-run extension-init extension-migrate extension-seed clone-profiles \
-	up-infra up-pbms up-farmer-registry up-nsr-registry up-farmer-registry-seed up-nsr-registry-seed up-bridge up-spar up-full \
-	docker-farmer-up docker-nsr-up docker-registry-up docker-registry-init \
-	docker-farmer-continue docker-nsr-continue docker-down docker-all-up docker-clean
+	up-infra up-pbms up-farmer-registry up-nsr-registry up-vsss-registry up-farmer-registry-seed up-nsr-registry-seed up-vsss-registry-seed up-bridge up-spar up-full \
+	docker-farmer-up docker-nsr-up docker-vsss-up docker-registry-up docker-registry-init \
+	docker-farmer-continue docker-nsr-continue docker-vsss-continue docker-down docker-all-up docker-clean
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z0-9_-]+:.*##' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-24s\033[0m %s\n", $$1, $$2}'
@@ -34,7 +34,7 @@ help: ## Show available targets
 setup: clone generate ## Clone repos (PROFILE=registry) and generate local configs
 	@echo "Setup complete (profile: $(or $(PROFILE),registry)). Next: make infra-up"
 
-clone: ## Clone product repos for a profile (PROFILE=registry|national-social-registry|farmer-registry|pbms|bridge|spar|full)
+clone: ## Clone product repos for a profile (PROFILE=registry|national-social-registry|village-social-security-registry|farmer-registry|pbms|bridge|spar|full)
 	@bash scripts/clone-repos.sh "$(or $(PROFILE),registry)"
 
 clone-profiles: ## List available clone/setup profiles
@@ -67,7 +67,7 @@ install-registry-extension: ## Install domain extension (VARIANT=farmer-registry
 install-registry-ui: ## Install npm deps for Gen2 staff UI (registry-platform/ui/staff-ui)
 	@bash scripts/install-registry-ui.sh
 
-install-registry-db-seed: ## Install db-seed Python deps (VARIANT=farmer-registry|national-social-registry|custom)
+install-registry-db-seed: ## Install db-seed Python deps (VARIANT=farmer-registry|national-social-registry|village-social-security-registry|custom)
 	@test -n "$(VARIANT)" || (echo "Set VARIANT to your registry slug (e.g. disability-registry)" >&2; exit 1)
 	@bash scripts/install-registry-db-seed.sh $(VARIANT)
 
@@ -128,7 +128,19 @@ nsr-registry-migrate: generate ## Migrate NSR schema only
 nsr-registry-seed: generate ## Seed NSR configuration and optional sample data
 	@VARIANT=national-social-registry bash scripts/seed-registry-db.sh national-social-registry
 
-seed-registry: generate ## Seed a registry variant (VARIANT=farmer-registry|national-social-registry|custom)
+vsss-setup: generate infra-up ## One-time VSSS bootstrap: IAM, AWE, migrate, and seed (honours LOAD_SAMPLE_DATA in .env)
+	@bash scripts/vsss-setup.sh
+
+vsss-registry-init: generate ## Migrate schema and seed VSSS configuration
+	@VARIANT=village-social-security-registry bash scripts/init-registry-variant.sh village-social-security-registry
+
+vsss-registry-migrate: generate ## Migrate VSSS schema only
+	@VARIANT=village-social-security-registry bash scripts/migrate-registry-db.sh village-social-security-registry
+
+vsss-registry-seed: generate ## Seed VSSS configuration and optional sample data
+	@VARIANT=village-social-security-registry bash scripts/seed-registry-db.sh village-social-security-registry
+
+seed-registry: generate ## Seed a registry variant (VARIANT=farmer-registry|national-social-registry|village-social-security-registry|custom)
 	@test -n "$(VARIANT)" || (echo "Set VARIANT to your registry slug" >&2; exit 1)
 	@VARIANT=$(VARIANT) bash scripts/seed-registry-db.sh $(VARIANT)
 
@@ -206,6 +218,8 @@ up-farmer-registry: docker-farmer-up ## Docker Farmer only: infra + IAM + AWE + 
 
 up-nsr-registry: docker-nsr-up ## Docker NSR only: infra + IAM + AWE + NSR + seed (no Farmer)
 
+up-vsss-registry: docker-vsss-up ## Docker VSSS only: infra + IAM + AWE + VSSS + seed
+
 up-farmer-registry-seed: generate-docker infra-up ## Run Farmer Registry db-seed container (after migrate)
 	@bash -c 'set -a; source .env; set +a; export USE_EXTERNAL_REDIS=false; \
 		$(COMPOSE) $(COMPOSE_FILES) --profile farmer-registry-seed run --rm --no-deps farmer-registry-db-seed'
@@ -213,6 +227,10 @@ up-farmer-registry-seed: generate-docker infra-up ## Run Farmer Registry db-seed
 up-nsr-registry-seed: generate-docker infra-up ## Run NSR db-seed container (after migrate)
 	@bash -c 'set -a; source .env; set +a; export USE_EXTERNAL_REDIS=false; \
 		$(COMPOSE) $(COMPOSE_FILES) --profile nsr-registry-seed run --rm --no-deps nsr-registry-db-seed'
+
+up-vsss-registry-seed: generate-docker infra-up ## Run VSSS db-seed container (after migrate)
+	@bash -c 'set -a; source .env; set +a; export USE_EXTERNAL_REDIS=false; \
+		$(COMPOSE) $(COMPOSE_FILES) --profile vsss-registry-seed run --rm --no-deps vsss-registry-db-seed'
 
 up-bridge: generate infra-up ## Start infra + containerized G2P Bridge (if images exist)
 	@$(COMPOSE) $(COMPOSE_FILES) --profile bridge up -d
@@ -235,6 +253,12 @@ docker-farmer-continue: ## Resume Farmer after a failed up (no teardown); RESET_
 
 docker-nsr-continue: ## Resume NSR after a failed up (no teardown); RESET_DBS=1 to remigrate
 	@bash scripts/docker-nsr-continue.sh
+
+docker-vsss-up: ## Docker VSSS only: Keycloak+IAM+AWE+MasterData+VSSS + seed (full recreate)
+	@bash scripts/docker-vsss-up.sh
+
+docker-vsss-continue: ## Resume VSSS after a failed up (no teardown); RESET_DBS=1 to remigrate
+	@bash scripts/docker-vsss-continue.sh
 
 docker-all-up: docker-registry-up ## Docker all: Farmer then NSR (full recreate each)
 
@@ -312,6 +336,9 @@ farmer-registry-run: generate ## Run Farmer Registry Gen2 natively
 
 nsr-registry-run: generate ## Run National Social Registry Gen2 natively
 	@bash scripts/run-registry-variant.sh national-social-registry
+
+vsss-registry-run: generate ## Run Village Social Security System Gen2 natively
+	@bash scripts/run-registry-variant.sh village-social-security-registry
 
 bridge-run: generate ## Alias for start-bridge
 	@bash scripts/run-bridge.sh

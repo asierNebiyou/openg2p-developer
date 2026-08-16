@@ -40,6 +40,13 @@ WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'nsr_registry_db')\gex
 SELECT 'CREATE DATABASE nsr_master_data_db OWNER postgres'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'nsr_master_data_db')\gexec
 
+-- Registry Gen2: Village Social Security System
+SELECT 'CREATE DATABASE vsss_registry_db OWNER postgres'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'vsss_registry_db')\gexec
+
+SELECT 'CREATE DATABASE vsss_master_data_db OWNER postgres'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'vsss_master_data_db')\gexec
+
 -- G2P Bridge
 DO $$
 BEGIN
@@ -84,4 +91,7 @@ WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'idgenerator')\gexec
 CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 \c farmer_registry_db
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
+\c vsss_registry_db
 CREATE EXTENSION IF NOT EXISTS pg_trgm;

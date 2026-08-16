@@ -27,6 +27,7 @@ PAYLOAD_FILE="${IAM_API_DIR}/samples/registry_registration_payload.json"
 
 FARMER_REGISTRY_STAFF_API_PORT="${FARMER_REGISTRY_STAFF_API_PORT:-8001}"
 NSR_REGISTRY_STAFF_API_PORT="${NSR_REGISTRY_STAFF_API_PORT:-8011}"
+VSSS_REGISTRY_STAFF_API_PORT="${VSSS_REGISTRY_STAFF_API_PORT:-8021}"
 
 POSTGRES_HOST="${POSTGRES_HOST:-localhost}"
 POSTGRES_PORT="${POSTGRES_PORT:-5432}"
@@ -59,6 +60,7 @@ fi
 variants_json="$(
   NSR_REGISTRY_STAFF_API_PORT="$NSR_REGISTRY_STAFF_API_PORT" \
   FARMER_REGISTRY_STAFF_API_PORT="$FARMER_REGISTRY_STAFF_API_PORT" \
+  VSSS_REGISTRY_STAFF_API_PORT="$VSSS_REGISTRY_STAFF_API_PORT" \
   python3 - <<'PY'
 import json
 import os
@@ -75,6 +77,10 @@ variants = [
     {
         "mnemonic": "nsr-registry-staff-portal",
         "url": f"http://localhost:{os.environ['NSR_REGISTRY_STAFF_API_PORT']}",
+    },
+    {
+        "mnemonic": "vsss-registry-staff-portal",
+        "url": f"http://localhost:{os.environ['VSSS_REGISTRY_STAFF_API_PORT']}",
     },
 ]
 

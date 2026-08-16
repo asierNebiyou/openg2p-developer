@@ -10,6 +10,7 @@ KEYCLOAK_REALM="${KEYCLOAK_REALM:-staff}"
 IAM_STAFF_PORT="${IAM_STAFF_PORT:-8020}"
 FARMER_REGISTRY_UI_PORT="${FARMER_REGISTRY_UI_PORT:-3001}"
 NSR_REGISTRY_UI_PORT="${NSR_REGISTRY_UI_PORT:-3002}"
+VSSS_REGISTRY_UI_PORT="${VSSS_REGISTRY_UI_PORT:-3020}"
 STAFF_PORTAL_UI_PORT="${STAFF_PORTAL_UI_PORT:-3000}"
 PBMS_HTTP_PORT="${PBMS_HTTP_PORT:-8069}"
 G2P_BRIDGE_API_PORT="${G2P_BRIDGE_API_PORT:-8002}"
@@ -193,6 +194,7 @@ ensure_dev_user() {
   for role in "${REGISTRY_STAFF_CLIENT_ROLES[@]}"; do
     assign_client_role "${KEYCLOAK_DEV_USER}" "nsr-registry-staff-portal" "${role}"
     assign_client_role "${KEYCLOAK_DEV_USER}" "farmer-registry-staff-portal" "${role}"
+    assign_client_role "${KEYCLOAK_DEV_USER}" "vsss-registry-staff-portal" "${role}"
   done
 
   assign_client_role "${KEYCLOAK_DEV_USER}" "awe-admin-portal" "AWE_ADMIN"
@@ -213,6 +215,7 @@ ensure_awe_approver_users() {
     for role in "${AWE_APPROVER_ROLES[@]}"; do
       assign_client_role "${username}" "farmer-registry-staff-portal" "${role}"
       assign_client_role "${username}" "nsr-registry-staff-portal" "${role}"
+      assign_client_role "${username}" "vsss-registry-staff-portal" "${role}"
     done
   done
 }
@@ -253,7 +256,7 @@ echo "[keycloak-init] Ensuring OIDC clients in realm '${KEYCLOAK_REALM}' ..."
 # Include Staff/Farmer/NSR UI URLs so Keycloak accepts post_logout_redirect_uri
 # (IAM logout uses login_providers.default_redirect_uri).
 # Keycloak 26 kcadm rejects dotted -s 'attributes.foo=...'; pass attributes as JSON.
-IAM_POST_LOGOUT_REDIRECT_URIS="http://localhost:${STAFF_PORTAL_UI_PORT}/*##http://localhost:${FARMER_REGISTRY_UI_PORT}/*##http://localhost:${NSR_REGISTRY_UI_PORT}/*##http://localhost:${IAM_STAFF_PORT}/auth/callback"
+IAM_POST_LOGOUT_REDIRECT_URIS="http://localhost:${STAFF_PORTAL_UI_PORT}/*##http://localhost:${FARMER_REGISTRY_UI_PORT}/*##http://localhost:${NSR_REGISTRY_UI_PORT}/*##http://localhost:${VSSS_REGISTRY_UI_PORT}/*##http://localhost:${IAM_STAFF_PORT}/auth/callback"
 IAM_CLIENT_ATTRIBUTES="$(printf '{"post.logout.redirect.uris":"%s"}' "${IAM_POST_LOGOUT_REDIRECT_URIS}")"
 ensure_client "iam-staff-portal" \
   -s enabled=true \
@@ -262,7 +265,7 @@ ensure_client "iam-staff-portal" \
   -s standardFlowEnabled=true \
   -s directAccessGrantsEnabled=true \
   -s serviceAccountsEnabled=false \
-  -s 'redirectUris=["http://localhost:'"${IAM_STAFF_PORT}"'/auth/callback","http://localhost:'"${STAFF_PORTAL_UI_PORT}"'/*","http://localhost:'"${FARMER_REGISTRY_UI_PORT}"'/*","http://localhost:'"${NSR_REGISTRY_UI_PORT}"'/*"]' \
+  -s 'redirectUris=["http://localhost:'"${IAM_STAFF_PORT}"'/auth/callback","http://localhost:'"${STAFF_PORTAL_UI_PORT}"'/*","http://localhost:'"${FARMER_REGISTRY_UI_PORT}"'/*","http://localhost:'"${NSR_REGISTRY_UI_PORT}"'/*","http://localhost:'"${VSSS_REGISTRY_UI_PORT}"'/*"]' \
   -s 'webOrigins=["+"]' \
   -s "attributes=${IAM_CLIENT_ATTRIBUTES}"
 
@@ -281,6 +284,14 @@ ensure_client "farmer-registry-staff-portal" \
   -s directAccessGrantsEnabled=true \
   -s 'redirectUris=["http://localhost:'"${FARMER_REGISTRY_UI_PORT}"'/*"]' \
   -s 'webOrigins=["http://localhost:'"${FARMER_REGISTRY_UI_PORT}"'"]'
+
+ensure_client "vsss-registry-staff-portal" \
+  -s enabled=true \
+  -s publicClient=true \
+  -s standardFlowEnabled=true \
+  -s directAccessGrantsEnabled=true \
+  -s 'redirectUris=["http://localhost:'"${VSSS_REGISTRY_UI_PORT}"'/*"]' \
+  -s 'webOrigins=["http://localhost:'"${VSSS_REGISTRY_UI_PORT}"'"]'
 
 ensure_client "g2p-bridge" \
   -s enabled=true \
@@ -323,6 +334,7 @@ ensure_awe_clients
 for role in "${REGISTRY_STAFF_CLIENT_ROLES[@]}"; do
   ensure_client_role "nsr-registry-staff-portal" "${role}"
   ensure_client_role "farmer-registry-staff-portal" "${role}"
+  ensure_client_role "vsss-registry-staff-portal" "${role}"
 done
 
 ensure_dev_user

@@ -35,7 +35,7 @@ registry_variant_is_custom() {
 
 registry_variant_validate() {
   local variant="$1"
-  if [[ "$variant" == "farmer-registry" || "$variant" == "national-social-registry" ]]; then
+  if [[ "$variant" == "farmer-registry" || "$variant" == "national-social-registry" || "$variant" == "village-social-security-registry" ]]; then
     return 0
   fi
   # shellcheck disable=SC1091
@@ -44,7 +44,7 @@ registry_variant_validate() {
     return 0
   fi
   echo "Unknown VARIANT '${variant}'." >&2
-  echo "Built-in: farmer-registry, national-social-registry" >&2
+  echo "Built-in: farmer-registry, national-social-registry, village-social-security-registry" >&2
   echo "Custom: bootstrap with make extension-package NAME=${variant}" >&2
   return 1
 }
@@ -94,6 +94,15 @@ registry_variant_paths() {
       MASTER_DATA_PACK_DOMAINS="${MASTER_DATA_PACK_DOMAINS:-}"
       LABEL="National Social Registry"
       ;;
+    village-social-security-registry)
+      PRODUCT_REPO="${OPENG2P_WORKSPACE}/village-social-security-registry"
+      EXTENSION_DIR="${PRODUCT_REPO}/openg2p-registry-vsss-extension"
+      DB_SEED_DIR="${PRODUCT_REPO}/docker/db-seed"
+      UI_DIR="${VSSS_REGISTRY_UI_PATH:-$DEFAULT_UI_DIR}"
+      MASTER_DATA_API_PORT="${VSSS_MASTER_DATA_API_PORT:-8044}"
+      MASTER_DATA_PACK_DOMAINS="${MASTER_DATA_PACK_DOMAINS:-}"
+      LABEL="Village Social Security System"
+      ;;
     *)
       # shellcheck disable=SC1091
       source "$(dirname "${BASH_SOURCE[0]}")/extension-manifest.sh"
@@ -136,6 +145,11 @@ registry_variant_db_settings() {
       REGISTRY_DB_NAME="${NSR_REGISTRY_DB:-nsr_registry_db}"
       MASTER_DATA_DB_NAME="${NSR_MASTER_DATA_DB:-nsr_master_data_db}"
       REGISTRY_STAFF_API_PORT="${NSR_REGISTRY_STAFF_API_PORT:-8011}"
+      ;;
+    village-social-security-registry)
+      REGISTRY_DB_NAME="${VSSS_REGISTRY_DB:-vsss_registry_db}"
+      MASTER_DATA_DB_NAME="${VSSS_MASTER_DATA_DB:-vsss_master_data_db}"
+      REGISTRY_STAFF_API_PORT="${VSSS_REGISTRY_STAFF_API_PORT:-8021}"
       ;;
     *)
       # shellcheck disable=SC1091
