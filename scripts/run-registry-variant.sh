@@ -22,6 +22,7 @@ echo "${LABEL} native stack"
 case "$VARIANT" in
   farmer-registry) SETUP_HINT="make farmer-setup" ;;
   national-social-registry) SETUP_HINT="make nsr-setup" ;;
+  village-social-security-registry) SETUP_HINT="make vsss-setup" ;;
   *) SETUP_HINT="make extension-setup NAME=${VARIANT}" ;;
 esac
 echo "One-time DB setup if not done yet: ${SETUP_HINT}"

@@ -21,16 +21,8 @@ if registry_variant_is_custom "$VARIANT"; then
   MASTER_DB="${EXTENSION_MASTER_DATA_DB}"
 else
   registry_variant_db_settings "$VARIANT"
-  case "$VARIANT" in
-    farmer-registry)
-      REGISTRY_DB="${REGISTRY_DB_NAME}"
-      MASTER_DB="${FARMER_MASTER_DATA_DB:-farmer_master_data_db}"
-      ;;
-    national-social-registry)
-      REGISTRY_DB="${REGISTRY_DB_NAME}"
-      MASTER_DB="${NSR_MASTER_DATA_DB:-nsr_master_data_db}"
-      ;;
-  esac
+  REGISTRY_DB="${REGISTRY_DB_NAME}"
+  MASTER_DB="${MASTER_DATA_DB_NAME}"
 fi
 
 POSTGRES_HOST="${POSTGRES_HOST:-localhost}"

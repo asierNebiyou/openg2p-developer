@@ -9,6 +9,9 @@ if [[ -f .env ]]; then
   source .env
 fi
 
+# shellcheck disable=SC1091
+source "${ROOT_DIR}/scripts/lib/resolve-python.sh"
+
 resolve_path() {
   local path="$1"
   if [[ "$path" != /* ]]; then
@@ -32,8 +35,19 @@ for dir in "$IAM_API_DIR" "$IAM_CORE_DIR"; do
   fi
 done
 
+PYTHON_BIN="$(resolve_python_bin)"
+if ! resolve_python_meets_minimum "$PYTHON_BIN"; then
+  echo "Python >=3.10 required for IAM. Set OPENG2P_PYTHON in .env." >&2
+  exit 1
+fi
+
+if [[ -d "${IAM_API_DIR}/venv" ]] && ! resolve_python_meets_minimum "${IAM_API_DIR}/venv/bin/python" 2>/dev/null; then
+  echo "Recreating IAM venv with ${PYTHON_BIN} ..."
+  rm -rf "${IAM_API_DIR}/venv"
+fi
+
 if [[ ! -d "${IAM_API_DIR}/venv" ]]; then
-  python3 -m venv "${IAM_API_DIR}/venv"
+  "${PYTHON_BIN}" -m venv "${IAM_API_DIR}/venv"
 fi
 
 (

@@ -48,9 +48,12 @@ NSR_TABLES = [
     "g2p_register_individuals",
 ]
 
+VSSS_TABLES = NSR_TABLES
+
 TABLES_BY_VARIANT = {
     "farmer-registry": FARMER_TABLES,
     "national-social-registry": NSR_TABLES,
+    "village-social-security-registry": VSSS_TABLES,
 }
 
 

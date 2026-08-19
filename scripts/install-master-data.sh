@@ -40,9 +40,15 @@ SKIP_EDITABLE_INSTALL=1 bash "${ROOT_DIR}/scripts/install-python-project.sh" "$M
 
 SEED_DIR="${OPENG2P_WORKSPACE}/master-data-service/docker/db-seed"
 if [[ -d "$SEED_DIR" ]]; then
+  # shellcheck disable=SC1091
+  source "${ROOT_DIR}/scripts/lib/resolve-python.sh"
+  SEED_PYTHON="$(resolve_python_bin)"
+  if [[ -d "${SEED_DIR}/venv" ]] && ! resolve_python_meets_minimum "${SEED_DIR}/venv/bin/python" 2>/dev/null; then
+    rm -rf "${SEED_DIR}/venv"
+  fi
   if [[ ! -x "${SEED_DIR}/venv/bin/python" ]]; then
     echo "Installing Master Data db-seed Python dependencies ..."
-    python3 -m venv "${SEED_DIR}/venv"
+    "${SEED_PYTHON}" -m venv "${SEED_DIR}/venv"
   fi
   (
     # shellcheck disable=SC1091

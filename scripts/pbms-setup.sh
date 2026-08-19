@@ -42,6 +42,10 @@ if [[ "${PBMS_WITH_REGISTRY}" == "true" ]]; then
       echo "==> Bootstrapping NSR (${PBMS_REGISTRY_VARIANT}) ..."
       make nsr-setup
       ;;
+    village-social-security-registry)
+      echo "==> Bootstrapping VSSS (${PBMS_REGISTRY_VARIANT}) ..."
+      make vsss-setup
+      ;;
     *)
       echo "==> Bootstrapping custom registry extension (${PBMS_REGISTRY_VARIANT}) ..."
       make extension-setup NAME="${PBMS_REGISTRY_VARIANT}"

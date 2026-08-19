@@ -28,13 +28,29 @@ if [[ ! -d "$AWE_DIR" ]]; then
   exit 1
 fi
 
-if ! python3 -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)'; then
-  echo "AWE requires Python 3.11+. Found: $(python3 --version)" >&2
+# shellcheck disable=SC1091
+source "${ROOT_DIR}/scripts/lib/resolve-python.sh"
+PYTHON_BIN="$(resolve_python_bin)"
+if ! resolve_python_meets_minimum "$PYTHON_BIN" 3 11; then
+  for PYTHON_BIN in python3.13 python3.12 python3.11; do
+    if command -v "$PYTHON_BIN" >/dev/null 2>&1 && resolve_python_meets_minimum "$PYTHON_BIN" 3 11; then
+      break
+    fi
+    PYTHON_BIN=""
+  done
+fi
+if [[ -z "$PYTHON_BIN" ]] || ! resolve_python_meets_minimum "$PYTHON_BIN" 3 11; then
+  echo "AWE requires Python 3.11+. Set OPENG2P_PYTHON in .env." >&2
   exit 1
 fi
 
+if [[ -d "${AWE_DIR}/venv" ]] && ! resolve_python_meets_minimum "${AWE_DIR}/venv/bin/python" 3 11 2>/dev/null; then
+  echo "Recreating AWE venv with ${PYTHON_BIN} ..."
+  rm -rf "${AWE_DIR}/venv"
+fi
+
 if [[ ! -d "${AWE_DIR}/venv" ]]; then
-  python3 -m venv "${AWE_DIR}/venv"
+  "${PYTHON_BIN}" -m venv "${AWE_DIR}/venv"
 fi
 
 install_awe_editable() {

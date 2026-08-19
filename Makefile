@@ -168,11 +168,7 @@ extension-run: generate ## Run custom extension natively (NAME=disability-regist
 	@bash scripts/run-registry-variant.sh "$(NAME)"
 
 infra-ensure: ## Start infra containers if stopped (no Keycloak provisioning)
-	@test -f .env || cp .env.example .env
-	@bash -c 'set -a; source .env; set +a; \
-		profiles=(--profile infra); \
-		if [[ "$${USE_EXTERNAL_REDIS:-false}" != "true" ]]; then profiles+=(--profile with-redis); fi; \
-		$(COMPOSE) $(COMPOSE_FILES) "$${profiles[@]}" up -d'
+	@bash scripts/infra-compose-up.sh
 
 keycloak-init: infra-ensure ## Provision Keycloak staff realm and OIDC clients
 	@bash -c 'set -a; source .env; set +a; $(COMPOSE) -f compose/docker-compose.infra.yml --profile infra up keycloak-init --abort-on-container-exit' || true

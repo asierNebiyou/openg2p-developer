@@ -26,10 +26,23 @@ fi
 
 cd "$PROJECT_DIR"
 
-PYTHON_BIN="${OPENG2P_PYTHON:-python3}"
+# shellcheck disable=SC1091
+source "$(dirname "${BASH_SOURCE[0]}")/lib/resolve-python.sh"
+PYTHON_BIN="$(resolve_python_bin)"
 if ! command -v "$PYTHON_BIN" >/dev/null 2>&1; then
   echo "Python not found: ${PYTHON_BIN} (set OPENG2P_PYTHON in .env)" >&2
   exit 1
+fi
+if ! resolve_python_meets_minimum "$PYTHON_BIN"; then
+  echo "Python >=3.10 required (got $(resolve_python_major_minor "$PYTHON_BIN")). Set OPENG2P_PYTHON in .env." >&2
+  exit 1
+fi
+
+if [[ -d "$VENV_NAME" ]]; then
+  if ! resolve_python_meets_minimum "${VENV_NAME}/bin/python" 2>/dev/null; then
+    echo "Recreating ${PROJECT_DIR}/${VENV_NAME} with ${PYTHON_BIN} (existing venv is Python <3.10) ..."
+    rm -rf "$VENV_NAME"
+  fi
 fi
 
 if [[ ! -d "$VENV_NAME" ]]; then

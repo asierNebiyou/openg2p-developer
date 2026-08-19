@@ -40,6 +40,11 @@ case "$VARIANT" in
     RUN_TARGET="nsr-registry-run"
     SEED_TARGET="nsr-registry-seed"
     ;;
+  village-social-security-registry)
+    UI_PORT="${VSSS_REGISTRY_UI_PORT:-3020}"
+    RUN_TARGET="vsss-registry-run"
+    SEED_TARGET="vsss-registry-seed"
+    ;;
   *)
     extension_manifest_load "$VARIANT"
     UI_PORT="${EXTENSION_UI_PORT}"

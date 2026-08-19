@@ -183,6 +183,95 @@ case "$VARIANT" in
       )
     fi
     ;;
+  village-social-security-registry)
+    if [[ "$LOAD_GEO_DATA" == "true" || "$LOAD_SAMPLE_DATA" == "true" ]]; then
+      OPENG2P_DATA_DIR="$(registry_variant_open_data_dir)"
+      if [[ ! -d "$OPENG2P_DATA_DIR" ]]; then
+        echo "openg2p-data not found at ${OPENG2P_DATA_DIR}. Run: make clone PROFILE=vsss" >&2
+        exit 1
+      fi
+    fi
+
+    if [[ "$LOAD_GEO_DATA" == "true" ]]; then
+      echo "[seed] Seeding Master Data geo/codelists for ${LABEL} ..."
+      VARIANT="$VARIANT" bash "${ROOT_DIR}/scripts/seed-master-data.sh" "$VARIANT"
+      if [[ -f "${DB_SEED_DIR}/load_geo_data.py" ]]; then
+        echo "[seed] Loading VSSS geo into master data via ${DB_SEED_DIR}/load_geo_data.py ..."
+        (
+          cd "$DB_SEED_DIR"
+          # shellcheck disable=SC1091
+          source venv/bin/activate
+          export OPENG2P_DATA_DIR
+          registry_variant_export_master_psql
+          python3 load_geo_data.py
+        )
+      fi
+    else
+      echo "[seed] Skipping geo data (LOAD_GEO_DATA=${LOAD_GEO_DATA})."
+    fi
+
+    if [[ "$LOAD_SAMPLE_DATA" == "true" || "$LOAD_TEMPLATES" == "true" || "$LOAD_IMAGES" == "true" ]]; then
+      if [[ ! -x "${DB_SEED_DIR}/venv/bin/python" ]]; then
+        echo "[seed] Installing db-seed Python dependencies ..."
+        VARIANT=village-social-security-registry bash "${ROOT_DIR}/scripts/install-registry-db-seed.sh"
+      fi
+    fi
+
+    if [[ "$LOAD_SAMPLE_DATA" == "true" ]]; then
+      LOAD_SCRIPT="${DB_SEED_DIR}/load_sample_data.py"
+      if [[ ! -f "$LOAD_SCRIPT" ]]; then
+        echo "VSSS sample loader not found at ${LOAD_SCRIPT}. Run: make clone PROFILE=vsss" >&2
+        exit 1
+      fi
+
+      echo "[seed] Clearing existing VSSS sample data ..."
+      registry_variant_clear_sample_data "$VARIANT"
+
+      echo "[seed] Loading VSSS sample register data via ${LOAD_SCRIPT} ..."
+      (
+        cd "$DB_SEED_DIR"
+        # shellcheck disable=SC1091
+        source venv/bin/activate
+        export OPENG2P_DATA_DIR
+        registry_variant_export_psql
+        registry_variant_export_master_psql
+        python3 load_sample_data.py
+      )
+    else
+      echo "[seed] Skipping VSSS sample data (LOAD_SAMPLE_DATA=${LOAD_SAMPLE_DATA})."
+    fi
+
+    if [[ "$LOAD_TEMPLATES" == "true" && -f "${DB_SEED_DIR}/upload_templates.py" ]]; then
+      echo "[seed] Uploading VSSS templates to MinIO ..."
+      (
+        cd "$DB_SEED_DIR"
+        # shellcheck disable=SC1091
+        source venv/bin/activate
+        export MINIO_ENDPOINT="${MINIO_ENDPOINT:-localhost:9000}"
+        export MINIO_ACCESS_KEY="${MINIO_ROOT_USER:-admin}"
+        export MINIO_SECRET_KEY="${MINIO_ROOT_PASSWORD:-secret}"
+        export MINIO_SECURE="${MINIO_SECURE:-false}"
+        export TEMPLATE_BUCKET_NAME="${REGISTRY_TEMPLATE_BUCKET:-templates}"
+        python3 upload_templates.py
+      )
+    fi
+
+    if [[ "$LOAD_IMAGES" == "true" && -f "${DB_SEED_DIR}/upload_images.py" ]]; then
+      echo "[seed] Uploading VSSS profile images to MinIO ..."
+      (
+        cd "$DB_SEED_DIR"
+        # shellcheck disable=SC1091
+        source venv/bin/activate
+        export OPENG2P_DATA_DIR="$(registry_variant_open_data_dir)"
+        export MINIO_ENDPOINT="${MINIO_ENDPOINT:-localhost:9000}"
+        export MINIO_ACCESS_KEY="${MINIO_ROOT_USER:-admin}"
+        export MINIO_SECRET_KEY="${MINIO_ROOT_PASSWORD:-secret}"
+        export MINIO_SECURE="${MINIO_SECURE:-false}"
+        export IMAGE_BUCKET_NAME="${REGISTRY_IMAGE_BUCKET:-registrant-photos}"
+        python3 upload_images.py
+      )
+    fi
+    ;;
   *)
     if [[ "$LOAD_SAMPLE_DATA" == "true" ]]; then
       registry_variant_run_sql_tree "$SAMPLE_DATA_DIR" "sample data SQL"

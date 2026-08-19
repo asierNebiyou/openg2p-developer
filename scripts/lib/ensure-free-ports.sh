@@ -4,13 +4,21 @@
 
 _port_listening() {
   local port="$1"
+  # macOS netstat output does not match the Linux ss/netstat grep below; lsof is reliable.
+  if [[ "$(uname -s)" == "Darwin" ]] && command -v lsof >/dev/null 2>&1; then
+    lsof -nP -iTCP:"${port}" -sTCP:LISTEN >/dev/null 2>&1
+    return $?
+  fi
   if command -v ss >/dev/null 2>&1; then
     ss -tlnH 2>/dev/null | awk '{print $4}' | grep -Eq "(^|[.:\\*])${port}$"
-  elif command -v netstat >/dev/null 2>&1; then
-    netstat -tln 2>/dev/null | awk '{print $4}' | grep -Eq "(^|[.:\\*])${port}$"
-  else
-    ! python3 -c "import socket; s=socket.socket(); s.bind(('0.0.0.0', int('${port}'))); s.close()" 2>/dev/null
+    return $?
   fi
+  if command -v netstat >/dev/null 2>&1; then
+    netstat -tln 2>/dev/null | awk '{print $4}' | grep -Eq "(^|[.:\\*])${port}$"
+    return $?
+  fi
+  # Last resort: if bind fails, something is listening on the port.
+  ! python3 -c "import socket; s=socket.socket(); s.bind(('0.0.0.0', int('${port}'))); s.close()" 2>/dev/null
 }
 
 # True if some openg2p-* container already publishes this host port.
@@ -23,7 +31,7 @@ _port_owned_by_openg2p() {
     if docker port "$name" 2>/dev/null | grep -Eq "(0\\.0\\.0\\.0|\\[::\\]|127\\.0\\.0\\.1):${port}$"; then
       return 0
     fi
-  done < <(docker ps -a --format '{{.Names}}' 2>/dev/null | grep '^openg2p-' || true)
+  done < <(docker ps --format '{{.Names}}' 2>/dev/null | grep '^openg2p-' || true)
   return 1
 }
 
@@ -67,7 +75,11 @@ _env_set_var() {
   local key="$2"
   local value="$3"
   if grep -q "^${key}=" "$file" 2>/dev/null; then
-    sed -i "s|^${key}=.*|${key}=${value}|" "$file"
+    if sed --version >/dev/null 2>&1; then
+      sed -i "s|^${key}=.*|${key}=${value}|" "$file"
+    else
+      sed -i '' "s|^${key}=.*|${key}=${value}|" "$file"
+    fi
   else
     printf '%s=%s\n' "$key" "$value" >> "$file"
   fi
@@ -145,6 +157,8 @@ docker_registry_ensure_ports() {
   ensure_host_port STAFF_PORTAL_UI_PORT "${STAFF_PORTAL_UI_PORT:-3000}" "Staff Portal hub"
 
   case "$variant" in
+    infra)
+      ;;
     farmer)
       ensure_host_port FARMER_REGISTRY_STAFF_API_PORT "${FARMER_REGISTRY_STAFF_API_PORT:-8001}" "Farmer API"
       ensure_host_port FARMER_REGISTRY_PARTNER_API_PORT "${FARMER_REGISTRY_PARTNER_API_PORT:-8006}" "Farmer partner"
