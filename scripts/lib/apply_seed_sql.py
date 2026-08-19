@@ -266,6 +266,20 @@ def _connect() -> psycopg2.extensions.connection:
     )
 
 
+def _table_exists(cur, table: str) -> bool:
+    cur.execute(
+        """
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.tables
+          WHERE table_schema = 'public' AND table_name = %s
+        )
+        """,
+        (table,),
+    )
+    return bool(cur.fetchone()[0])
+
+
 def apply_sql_file(path: Path) -> None:
     original = path.read_text(encoding="utf-8")
     body = _strip_comments(original).strip()
@@ -286,6 +300,12 @@ def apply_sql_file(path: Path) -> None:
             with conn.cursor() as cur:
                 if parsed:
                     table, pk_col, pk_values = parsed
+                    if not _table_exists(cur, table):
+                        print(
+                            f"[apply-seed-sql]   skipped {table} "
+                            "(table missing — run make vsss-registry-migrate first)"
+                        )
+                        return
                     cur.execute("SAVEPOINT seed_delete")
                     try:
                         cur.execute(
@@ -297,6 +317,13 @@ def apply_sql_file(path: Path) -> None:
                             print(
                                 f"[apply-seed-sql]   deleted {deleted} row(s) from {table}"
                             )
+                    except psycopg2.errors.UndefinedTable:
+                        cur.execute("ROLLBACK TO SAVEPOINT seed_delete")
+                        print(
+                            f"[apply-seed-sql]   skipped {table} "
+                            "(table missing — run make vsss-registry-migrate first)"
+                        )
+                        return
                     except psycopg2.errors.ForeignKeyViolation:
                         cur.execute("ROLLBACK TO SAVEPOINT seed_delete")
                         print(

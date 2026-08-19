@@ -187,7 +187,31 @@ registry_variant_run_sql_tree() {
   fi
 
   local sql_files
-  sql_files="$(find "$dir" -name '*.sql' -type f | sort)"
+  # Alphabetical find order applies g2p_attribute_values.sql before
+  # g2p_attributes.sql (underscore sorts before 's'). Seed parents first.
+  sql_files="$(
+    find "$dir" -name '*.sql' -type f | python3 -c '
+import os, sys
+files = [line.strip() for line in sys.stdin if line.strip()]
+rank = {
+    "g2p_attributes.sql": 10,
+    "g2p_attribute_values.sql": 11,
+    "g2p_register_definitions.sql": 20,
+    "g2p_register_schemas.sql": 21,
+    "g2p_register_sections.sql": 22,
+    "g2p_register_ui_tabs.sql": 23,
+    "g2p_register_ui_tab_sections.sql": 24,
+    "g2p_intake_form_definitions.sql": 30,
+    "g2p_intake_form_ui_tabs.sql": 31,
+    "g2p_intake_form_ui_tab_sections.sql": 32,
+    "g2p_input_mechanisms.sql": 40,
+}
+def key(path):
+    return (rank.get(os.path.basename(path), 50), path)
+for path in sorted(files, key=key):
+    print(path)
+'
+  )"
   if [[ -z "$sql_files" ]]; then
     echo "[seed] No SQL files in ${dir}, skipping."
     return 0
