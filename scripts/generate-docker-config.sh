@@ -193,9 +193,13 @@ render "${ROOT_DIR}/templates/docker/iam-staff-portal-api.env.tpl" \
   "{{MINIO_ENDPOINT}}" "${MINIO_ENDPOINT}" \
   "{{NSR_REGISTRY_STAFF_API_PORT}}" "${NSR_REGISTRY_STAFF_API_PORT}"
 
+# AWE: issuer stays browser-facing (localhost); JWKS/admin use Compose DNS.
+KEYCLOAK_INTERNAL_URL="http://keycloak:${KEYCLOAK_PORT}"
+
 render "${ROOT_DIR}/templates/awe-config.yaml.tpl" \
   "${GENERATED_DIR}/awe/docker/config/default.yaml" \
   "{{KEYCLOAK_URL}}" "${KEYCLOAK_URL}" \
+  "{{KEYCLOAK_INTERNAL_URL}}" "${KEYCLOAK_INTERNAL_URL}" \
   "{{KEYCLOAK_REALM}}" "${KEYCLOAK_REALM}" \
   "{{KEYCLOAK_AWE_RESOLVER_CLIENT_SECRET}}" "${KEYCLOAK_AWE_RESOLVER_CLIENT_SECRET}"
 
@@ -203,6 +207,7 @@ render "${ROOT_DIR}/templates/docker/awe-api.env.tpl" \
   "${GENERATED_DIR}/awe/docker/awe-api.env" \
   "{{POSTGRES_PASSWORD}}" "${POSTGRES_PASSWORD}" \
   "{{KEYCLOAK_URL}}" "${KEYCLOAK_URL}" \
+  "{{KEYCLOAK_INTERNAL_URL}}" "${KEYCLOAK_INTERNAL_URL}" \
   "{{KEYCLOAK_REALM}}" "${KEYCLOAK_REALM}" \
   "{{KEYCLOAK_AWE_RESOLVER_CLIENT_SECRET}}" "${KEYCLOAK_AWE_RESOLVER_CLIENT_SECRET}"
 

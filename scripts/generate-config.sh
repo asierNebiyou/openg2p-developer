@@ -312,6 +312,7 @@ AWE_CONFIG_PATH="${GENERATED_DIR}/awe/config/default.yaml"
 mkdir -p "${GENERATED_DIR}/awe/config"
 render "${ROOT_DIR}/templates/awe-config.yaml.tpl" "${AWE_CONFIG_PATH}" \
   "{{KEYCLOAK_URL}}" "${KEYCLOAK_URL}" \
+  "{{KEYCLOAK_INTERNAL_URL}}" "${KEYCLOAK_URL}" \
   "{{KEYCLOAK_REALM}}" "${KEYCLOAK_REALM}" \
   "{{KEYCLOAK_AWE_RESOLVER_CLIENT_SECRET}}" "${KEYCLOAK_AWE_RESOLVER_CLIENT_SECRET}"
 
