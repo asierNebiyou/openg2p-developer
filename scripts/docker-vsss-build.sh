@@ -71,20 +71,22 @@ fi
 # the VSSS repo's own pin (and with its Helm chart, which CI checks in lockstep).
 RP_VERSION="${RP_VERSION:-${REGISTRY_PLATFORM_VERSION:-}}"
 
-# Prefer Docker Engine arch over `uname` (Rosetta shells report x86_64 on Apple Silicon).
-if [[ -z "${BUILD_PLATFORM:-}" ]]; then
-  _arch="$(docker version -f '{{.Server.Arch}}' 2>/dev/null || true)"
-  case "${_arch}" in
-    aarch64|arm64) BUILD_PLATFORM="linux/arm64" ;;
-    x86_64|amd64)  BUILD_PLATFORM="linux/amd64" ;;
-    *)
-      case "$(uname -m)" in
-        arm64|aarch64) BUILD_PLATFORM="linux/arm64" ;;
-        *)             BUILD_PLATFORM="linux/amd64" ;;
-      esac
-      ;;
-  esac
-fi
+# Build for amd64 regardless of the host.
+#
+# These images are thin layers over openg2p/openg2p-registry-{staff-api,
+# partner-api,celery,db-seed}, and those are published for linux/amd64 ONLY.
+# Following the host arch meant that on an Apple Silicon Mac this passed
+# --platform linux/arm64, which also overrides DOCKER_DEFAULT_PLATFORM, and the
+# build died on the first image with
+#
+#   ERROR [internal] load metadata for .../openg2p-registry-staff-api:1.2.2-rc.557
+#   no match for platform in manifest: not found
+#
+# reading as though the tag were wrong when the architecture is what is
+# missing. There is no arm64 base to build against, so arm64 is never a valid
+# choice here — the images run under Rosetta instead. BUILD_PLATFORM is still
+# honoured if set, for the day the platform publishes multi-arch bases.
+BUILD_PLATFORM="${BUILD_PLATFORM:-linux/amd64}"
 export BUILD_PLATFORM
 
 echo "============================================="
