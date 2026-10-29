@@ -38,6 +38,16 @@ VARIANT_CHARTS = {
     "farmer_registry": None,  # no wrapper chart in this repo's workflow
 }
 
+# Images knowingly left on a moving tag, with the reason. Reported as a known
+# exception rather than a failure, so the check stays worth reading. Remove an
+# entry the moment an immutable tag exists.
+ALLOW_MOVING = {
+    "nsr_staff_api":   "no openg2p/ NSR image on the 1.2 line; mowsa-nsr CI has published none",
+    "nsr_partner_api": "no openg2p/ NSR image on the 1.2 line; mowsa-nsr CI has published none",
+    "nsr_celery":      "no openg2p/ NSR image on the 1.2 line; mowsa-nsr CI has published none",
+    "nsr_db_seed":     "no openg2p/ NSR image on the 1.2 line; mowsa-nsr CI has published none",
+}
+
 MOVING_NAMES = {"latest", "develop", "main", "master", "edge", "nightly", "stable"}
 
 
@@ -139,16 +149,23 @@ def main() -> int:
     # application images have to be immutable, because those are what a release
     # is made of.
     INFRA = {"postgres", "redis", "minio", "keycloak"}
-    moving_app, moving_infra = {}, {}
+    moving_app, moving_infra, known_moving = {}, {}, {}
     for k, v in images.items():
         if not is_moving_tag(str(v)) or k.startswith(("pbms", "g2p_bridge")):
             continue
-        (moving_infra if k in INFRA else moving_app)[k] = v
+        if k in ALLOW_MOVING:
+            known_moving[k] = v
+        elif k in INFRA:
+            moving_infra[k] = v
+        else:
+            moving_app[k] = v
     if moving_app:
         for k, v in sorted(moving_app.items()):
             fail(f"images.{k} = {v} — moving tag; a release cannot be reproduced from it")
     else:
         ok("every OpenG2P application image is pinned to an immutable tag")
+    for k, v in sorted(known_moving.items()):
+        print(f"  known  images.{k} = {v} — moving tag, accepted: {ALLOW_MOVING[k]}")
     for k, v in sorted(moving_infra.items()):
         print(f"  note  images.{k} = {v} — tracks a minor tag (fine for infra, "
               "pin it if you need byte-identical rebuilds)")

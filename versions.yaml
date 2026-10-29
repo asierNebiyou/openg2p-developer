@@ -105,11 +105,26 @@ images:
   farmer_registry_celery: openg2p/openg2p-farmer-registry-celery:1.2.1-rc.190
   farmer_registry_db_seed: openg2p/openg2p-farmer-registry-db-seed:1.2.1-rc.190
 
-  # National Social Registry (Docker Hub — same tags as rancher2 nsr)
-  nsr_staff_api: openg2p/openg2p-mowsa-nsr-staff-portal-api:1.2.1-rc.335
-  nsr_partner_api: openg2p/openg2p-mowsa-nsr-partner-api:1.2.1-rc.335
-  nsr_celery: openg2p/openg2p-mowsa-nsr-celery:1.2.1-rc.335
-  nsr_db_seed: openg2p/openg2p-mowsa-nsr-db-seed:1.2.1-rc.335
+  # National Social Registry
+  #
+  # These are the images the qa namespace on rancher2.openg2p.org actually runs,
+  # and the only NSR images published on the 1.2 line anywhere. Checked on
+  # Docker Hub:
+  #   openg2p/openg2p-mowsa-nsr-staff-portal-api  -> repo does not exist
+  #   openg2p/openg2p-nsr-staff-api               -> 1.0.0, 1.0.1, 0.0.0-develop.*
+  #   asierneb/openg2p-nsr-staff-api              -> 1.2
+  # versions.yaml previously named openg2p/openg2p-mowsa-nsr-*:1.2.1-rc.335,
+  # which cannot be pulled: `make docker-nsr-up` fails with manifest unknown.
+  # mowsa-nsr's build-publish workflow targets openg2p/openg2p-mowsa-nsr-*, so
+  # that repo appearing with tags is the signal to move these back.
+  #
+  # `1.2` is a MOVING tag — whatever 1.2.x was pushed last. It is listed in
+  # ALLOW_MOVING in scripts/check-pins.py so the check reports it as a known
+  # exception instead of failing, since there is no immutable alternative yet.
+  nsr_staff_api: asierneb/openg2p-nsr-staff-api:1.2
+  nsr_partner_api: asierneb/openg2p-nsr-partner-api:1.2
+  nsr_celery: asierneb/openg2p-nsr-celery:1.2
+  nsr_db_seed: asierneb/openg2p-nsr-db-seed:1.2
   # NSR staff UI (compose uses REGISTRY_STAFF_PORTAL_UI_IMAGE for NSR UI container)
   # (registry_staff_portal_ui set above to 1.2.2-rc.544)
 
