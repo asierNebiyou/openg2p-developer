@@ -22,7 +22,10 @@ IAM_REF="${IAM_REF:-develop}"
 MASTER_DATA_REF="${MASTER_DATA_REF:-develop}"
 FARMER_REGISTRY_REF="${FARMER_REGISTRY_REF:-1.3}"
 NSR_REF="${NSR_REF:-1.1}"
-VSSS_REF="${VSSS_REF:-develop}"
+# Default must match .env.example: develop is still the old fat build model
+# (RP_VERSION 1.2.2-rc.509, extension 1.0.0, no amd64 FROM pin), which does not
+# work against the rc.557 platform pin this repo ships.
+VSSS_REF="${VSSS_REF:-feat/vsss-1.2-inverted-build}"
 G2P_BRIDGE_REF="${G2P_BRIDGE_REF:-develop}"
 SPAR_REF="${SPAR_REF:-develop}"
 AWE_REF="${AWE_REF:-develop}"
