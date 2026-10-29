@@ -317,8 +317,9 @@ docker_registry_keycloak_staff_client_ready() {
       | python3 -c 'import sys,json; print(json.load(sys.stdin).get("access_token",""))' 2>/dev/null || true
   )"
   [[ -n "${token}" ]] || return 1
+  local realm="${KEYCLOAK_REALM:-staff}"
   curl -sf -H "Authorization: Bearer ${token}" \
-    "http://localhost:${KEYCLOAK_PORT}/admin/realms/staff/clients?clientId=iam-staff-portal&max=1" \
+    "http://localhost:${KEYCLOAK_PORT}/admin/realms/${realm}/clients?clientId=iam-staff-portal&max=1" \
     | python3 -c 'import sys,json; raise SystemExit(0 if json.load(sys.stdin) else 1)' 2>/dev/null
 }
 
