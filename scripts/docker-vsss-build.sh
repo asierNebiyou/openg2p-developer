@@ -94,6 +94,26 @@ echo " Platform : ${BUILD_PLATFORM}"
 echo " RP_VERSION override : ${RP_VERSION:-<use each Dockerfile default>}"
 echo "============================================="
 
+# Prebuild the extension wheel on the host. The thin Dockerfiles install that
+# wheel with --no-deps so the image build never needs PyPI (Docker Desktop and
+# some CI runners can pull Hub but cannot reach pypi.org for hatchling).
+EXT_SRC="${PRODUCT_REPO}/openg2p-registry-vsss-extension"
+WHEEL_DIR="${PRODUCT_REPO}/docker/.build-wheels"
+if [[ ! -d "$EXT_SRC" ]]; then
+  echo "ERROR: extension source not found at ${EXT_SRC}" >&2
+  exit 1
+fi
+echo "--- prebuilding extension wheel -> ${WHEEL_DIR}"
+rm -rf "${WHEEL_DIR:?}/"*
+mkdir -p "$WHEEL_DIR"
+python3 -m pip wheel --no-deps -w "$WHEEL_DIR" "$EXT_SRC"
+WHEEL_COUNT="$(find "$WHEEL_DIR" -maxdepth 1 -name 'openg2p_registry_vsss_extension-*.whl' | wc -l | tr -d ' ')"
+if [[ "$WHEEL_COUNT" -lt 1 ]]; then
+  echo "ERROR: no openg2p_registry_vsss_extension-*.whl produced in ${WHEEL_DIR}" >&2
+  exit 1
+fi
+ls -1 "$WHEEL_DIR"/openg2p_registry_vsss_extension-*.whl
+
 for entry in "${SERVICES[@]}"; do
   svc="${entry%%:*}"
   img="${entry#*:}"
@@ -109,7 +129,7 @@ for entry in "${SERVICES[@]}"; do
   [[ -n "$RP_VERSION" ]] && build_args+=(--build-arg "RP_VERSION=${RP_VERSION}")
 
   echo "--- ${svc} -> ${img}"
-  # Repo-root context: the thin Dockerfiles COPY the extension from the repo root.
+  # Repo-root context: thin Dockerfiles COPY the prebuilt wheel from docker/.build-wheels/.
   docker build \
     --platform "${BUILD_PLATFORM}" \
     "${build_args[@]}" \
