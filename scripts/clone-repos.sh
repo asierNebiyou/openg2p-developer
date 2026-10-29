@@ -110,7 +110,16 @@ clone_repo_key() {
   esac
 }
 
-REPO_KEYS="$(clone_profile_repo_keys "$PROFILE" || exit 1)"
+# CLONE_REPO_KEYS lets a caller ask for exactly the repositories it needs instead
+# of a whole profile. The Docker paths use it: docker-vsss-up only needs the VSSS
+# product repo, because IAM, AWE, Master Data and the registry platform all run
+# as published images there and their source is never read.
+if [[ -n "${CLONE_REPO_KEYS:-}" ]]; then
+  REPO_KEYS="$CLONE_REPO_KEYS"
+  PROFILE="${PROFILE} (explicit keys: ${CLONE_REPO_KEYS})"
+else
+  REPO_KEYS="$(clone_profile_repo_keys "$PROFILE" || exit 1)"
+fi
 
 echo "============================================="
 echo " Clone profile: ${PROFILE}"

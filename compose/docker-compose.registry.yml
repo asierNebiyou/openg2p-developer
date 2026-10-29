@@ -8,7 +8,7 @@ services:
   # Migrates farmer_master_data_db (geo tables required by db-seed LOAD_GEO_DATA).
   farmer-master-data-api:
     profiles: [farmer-registry, full]
-    image: ${MASTER_DATA_API_IMAGE:-registry.gitlab.com/openg2p/master-data-service/master-data-api:0.0.0-develop.26}
+    image: ${MASTER_DATA_API_IMAGE:-openg2p/master-data-api:1.1.4-rc.104}
     container_name: openg2p-farmer-master-data-api
     depends_on:
       postgres:
@@ -155,7 +155,7 @@ services:
 
   nsr-master-data-api:
     profiles: [nsr-registry, full]
-    image: ${MASTER_DATA_API_IMAGE:-registry.gitlab.com/openg2p/master-data-service/master-data-api:0.0.0-develop.26}
+    image: ${MASTER_DATA_API_IMAGE:-openg2p/master-data-api:1.1.4-rc.104}
     container_name: openg2p-nsr-master-data-api
     depends_on:
       postgres:
@@ -382,7 +382,7 @@ services:
 
   vsss-master-data-api:
     profiles: [vsss-registry, full]
-    image: ${MASTER_DATA_API_IMAGE:-registry.gitlab.com/openg2p/master-data-service/master-data-api:0.0.0-develop.26}
+    image: ${MASTER_DATA_API_IMAGE:-openg2p/master-data-api:1.1.4-rc.104}
     container_name: openg2p-vsss-master-data-api
     depends_on:
       postgres:

@@ -151,8 +151,8 @@ docker_registry_ensure_variant_images() {
 
   # Shared infra + commons
   images+=(
-    "${ID_GENERATOR_IMAGE:-openg2p/openg2p-id-generator:1.0.0}"
-    "${IAM_STAFF_PORTAL_API_IMAGE:-openg2p/iam-staff-portal-api:1.3.0}"
+    "${ID_GENERATOR_IMAGE:-openg2p/openg2p-id-generator:1.1.2}"
+    "${IAM_STAFF_PORTAL_API_IMAGE:-openg2p/iam-staff-portal-api:1.4.4-rc.125}"
     "${AWE_API_IMAGE:-}"
     "${AWE_UI_IMAGE:-}"
     "${STAFF_PORTAL_UI_IMAGE:-}"
