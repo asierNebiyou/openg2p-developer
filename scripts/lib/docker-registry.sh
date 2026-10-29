@@ -277,6 +277,51 @@ docker_registry_container_publishes() {
   docker port "$name" 2>/dev/null | grep -Eq "(0\\.0\\.0\\.0|\\[::\\]|127\\.0\\.0\\.1):${port}$"
 }
 
+# Run keycloak-init once, with a hard timeout. A wedged kcadm (no log after
+# "User already exists") previously blocked docker-*-up for 20+ minutes.
+docker_registry_run_keycloak_init() {
+  local timeout_s="${KEYCLOAK_INIT_TIMEOUT_SECS:-600}"
+  docker rm -f openg2p-keycloak-init >/dev/null 2>&1 || true
+  echo "  Running keycloak-init (timeout ${timeout_s}s) ..."
+  # Always background + poll so macOS (no GNU timeout) and Linux behave the same.
+  docker_registry_compose -f compose/docker-compose.infra.yml --profile infra \
+    up keycloak-init --abort-on-container-exit --pull missing &
+  local pid=$!
+  local waited=0
+  while kill -0 "$pid" 2>/dev/null; do
+    if [[ "$waited" -ge "$timeout_s" ]]; then
+      echo "  keycloak-init exceeded ${timeout_s}s — stopping (clients/users may already exist)." >&2
+      kill "$pid" 2>/dev/null || true
+      sleep 2
+      kill -9 "$pid" 2>/dev/null || true
+      docker rm -f openg2p-keycloak-init >/dev/null 2>&1 || true
+      wait "$pid" 2>/dev/null || true
+      return 0
+    fi
+    sleep 5
+    waited=$((waited + 5))
+  done
+  wait "$pid" 2>/dev/null || true
+  docker rm -f openg2p-keycloak-init >/dev/null 2>&1 || true
+}
+
+# True when the staff OIDC client exists (init already did the important work).
+docker_registry_keycloak_staff_client_ready() {
+  local token
+  token="$(
+    curl -sf -X POST "http://localhost:${KEYCLOAK_PORT}/realms/master/protocol/openid-connect/token" \
+      -d "client_id=admin-cli" \
+      -d "username=${KEYCLOAK_ADMIN:-admin}" \
+      -d "password=${KEYCLOAK_ADMIN_PASSWORD:-admin}" \
+      -d "grant_type=password" \
+      | python3 -c 'import sys,json; print(json.load(sys.stdin).get("access_token",""))' 2>/dev/null || true
+  )"
+  [[ -n "${token}" ]] || return 1
+  curl -sf -H "Authorization: Bearer ${token}" \
+    "http://localhost:${KEYCLOAK_PORT}/admin/realms/staff/clients?clientId=iam-staff-portal&max=1" \
+    | python3 -c 'import sys,json; raise SystemExit(0 if json.load(sys.stdin) else 1)' 2>/dev/null
+}
+
 docker_registry_start_infra() {
   echo "Starting infra (Postgres, Redis, MinIO, Keycloak, ID Generator) ..."
   echo "  Postgres host port: ${POSTGRES_PORT}  Redis: ${REDIS_PORT}  Keycloak: ${KEYCLOAK_PORT}"
@@ -285,8 +330,7 @@ docker_registry_start_infra() {
   docker_registry_compose "${COMPOSE_FILES[@]}" --profile infra --profile with-redis \
     up -d --remove-orphans --force-recreate --pull missing
   bash "${ROOT_DIR}/scripts/infra-wait.sh"
-  docker_registry_compose -f compose/docker-compose.infra.yml --profile infra \
-    up keycloak-init --abort-on-container-exit --pull missing || true
+  docker_registry_run_keycloak_init
 }
 
 docker_registry_start_commons() {
@@ -454,28 +498,15 @@ docker_registry_ensure_infra_commons() {
   docker_registry_compose "${COMPOSE_FILES[@]}" --profile infra --profile with-redis \
     up -d --remove-orphans --pull missing
   bash "${ROOT_DIR}/scripts/infra-wait.sh"
-  # keycloak-init is idempotent but slow when attached. Skip only when the
-  # IAM OIDC client exists — an empty realm import can leave /realms/staff up
-  # with no clients (login then returns "Client not found").
-  _kc_token="$(
-    curl -sf -X POST "http://localhost:${KEYCLOAK_PORT}/realms/master/protocol/openid-connect/token" \
-      -d "client_id=admin-cli" \
-      -d "username=${KEYCLOAK_ADMIN:-admin}" \
-      -d "password=${KEYCLOAK_ADMIN_PASSWORD:-admin}" \
-      -d "grant_type=password" \
-      | python3 -c 'import sys,json; print(json.load(sys.stdin).get("access_token",""))' 2>/dev/null || true
-  )"
-  if [[ -n "${_kc_token}" ]] \
-    && curl -sf -H "Authorization: Bearer ${_kc_token}" \
-         "http://localhost:${KEYCLOAK_PORT}/admin/realms/staff/clients?clientId=iam-staff-portal&max=1" \
-         | python3 -c 'import sys,json; raise SystemExit(0 if json.load(sys.stdin) else 1)' 2>/dev/null; then
+  # Skip keycloak-init when iam-staff-portal already exists (typical continue /
+  # resume after a hung init that already created clients + the staff user).
+  docker rm -f openg2p-keycloak-init >/dev/null 2>&1 || true
+  if docker_registry_keycloak_staff_client_ready; then
     echo "  Keycloak client iam-staff-portal present; skipping keycloak-init."
   else
     echo "  Keycloak staff clients missing or incomplete; running keycloak-init ..."
-    docker_registry_compose -f compose/docker-compose.infra.yml --profile infra \
-      up keycloak-init --abort-on-container-exit --pull missing || true
+    docker_registry_run_keycloak_init
   fi
-  unset _kc_token
 
   echo "Ensuring commons (IAM + AWE + Staff Portal hub) are up (no recreate) ..."
   docker_registry_compose "${COMPOSE_FILES[@]}" \
