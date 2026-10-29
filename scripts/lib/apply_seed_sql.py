@@ -266,6 +266,26 @@ def _connect() -> psycopg2.extensions.connection:
     )
 
 
+def _migrate_hint() -> str:
+    """The migrate target for the variant being seeded.
+
+    The message used to say `make vsss-registry-migrate` for every variant,
+    which sends a farmer or NSR operator to a target that does not touch their
+    schema. VARIANT is exported by the calling shell helpers.
+    """
+    variant = os.environ.get("VARIANT", "")
+    target = {
+        "farmer-registry": "farmer-registry-migrate",
+        "national-social-registry": "nsr-registry-migrate",
+        "village-social-security-registry": "vsss-registry-migrate",
+    }.get(variant)
+    if target:
+        return f"run make {target} first"
+    if variant:
+        return f"run make extension-migrate NAME={variant} first"
+    return "run the variant's migrate target first"
+
+
 def _table_exists(cur, table: str) -> bool:
     cur.execute(
         """
@@ -284,7 +304,7 @@ def apply_sql_file(path: Path) -> None:
     original = path.read_text(encoding="utf-8")
     body = _strip_comments(original).strip()
     if not body:
-        print(f"[apply-seed-sql]   skipped (no SQL statements)")
+        print("[apply-seed-sql]   skipped (no SQL statements)")
         return
 
     conn = _connect()
@@ -292,7 +312,7 @@ def apply_sql_file(path: Path) -> None:
         sql = _patch_sql(path, original, conn)
         sql_body = _strip_comments(sql).strip()
         if not sql_body:
-            print(f"[apply-seed-sql]   skipped (no SQL statements after patch)")
+            print("[apply-seed-sql]   skipped (no SQL statements after patch)")
             return
 
         parsed = _parse_insert(sql)
@@ -303,7 +323,7 @@ def apply_sql_file(path: Path) -> None:
                     if not _table_exists(cur, table):
                         print(
                             f"[apply-seed-sql]   skipped {table} "
-                            "(table missing — run make vsss-registry-migrate first)"
+                            f"(table missing — {_migrate_hint()})"
                         )
                         return
                     cur.execute("SAVEPOINT seed_delete")
@@ -321,7 +341,7 @@ def apply_sql_file(path: Path) -> None:
                         cur.execute("ROLLBACK TO SAVEPOINT seed_delete")
                         print(
                             f"[apply-seed-sql]   skipped {table} "
-                            "(table missing — run make vsss-registry-migrate first)"
+                            f"(table missing — {_migrate_hint()})"
                         )
                         return
                     except psycopg2.errors.ForeignKeyViolation:

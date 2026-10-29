@@ -187,27 +187,65 @@ registry_variant_run_sql_tree() {
   fi
 
   local sql_files
-  # Alphabetical find order applies g2p_attribute_values.sql before
-  # g2p_attributes.sql (underscore sorts before 's'). Seed parents first.
+  # Seed order is explicit, not alphabetical. Plain `find | sort` gets several
+  # parent/child pairs backwards because the child's filename sorts first:
+  #   g2p_attribute_values.sql       before g2p_attributes.sql       ('_' < 's')
+  #   g2p_registry_theme_values.sql  before g2p_registry_themes.sql  ('_' < 's')
+  #   ..._score_contributing_...sql  before ..._score_definitions.sql ('c' < 'd')
+  #   incoming_model_register_...sql before incoming_model_semantic_...sql
+  # and connector_websub_rules.sql inserts into incoming_templates,
+  # incoming_model_key_paths AND incoming_model_semantic_patterns, so it has to
+  # run after all three rather than first on the alphabet.
+  #
+  # Anything unranked falls to 500 and is applied alphabetically after the
+  # ranked files, which is safe for leaf tables.
   sql_files="$(
     find "$dir" -name '*.sql' -type f | python3 -c '
 import os, sys
 files = [line.strip() for line in sys.stdin if line.strip()]
 rank = {
+    # lookups first — everything else references attribute values
     "g2p_attributes.sql": 10,
     "g2p_attribute_values.sql": 11,
+    # register definitions, then what hangs off them
     "g2p_register_definitions.sql": 20,
     "g2p_register_schemas.sql": 21,
     "g2p_register_sections.sql": 22,
     "g2p_register_ui_tabs.sql": 23,
     "g2p_register_ui_tab_sections.sql": 24,
+    # score definitions before the attributes that contribute to them
+    "g2p_register_score_definitions.sql": 25,
+    "g2p_register_score_contributing_attributes.sql": 26,
+    # intake forms reference registers
     "g2p_intake_form_definitions.sql": 30,
     "g2p_intake_form_ui_tabs.sql": 31,
     "g2p_intake_form_ui_tab_sections.sql": 32,
+    # registry configuration
     "g2p_input_mechanisms.sql": 40,
+    "g2p_registry_configuration.sql": 41,
+    "g2p_registry_languages.sql": 42,
+    "g2p_registry_themes.sql": 43,
+    "g2p_registry_theme_values.sql": 44,
+    "g2p_registry_vc_configurations.sql": 45,
+    # data models, then the documents the inbound rules point at
+    "data_models.sql": 50,
+    "connector_websub_data_models.sql": 51,
+    "g2p_registry_documents.sql": 52,
+    "connector_websub_documents.sql": 53,
+    # inbound message rules, parents before children
+    "incoming_model_key_paths.sql": 60,
+    "incoming_model_semantic_patterns.sql": 61,
+    "incoming_model_register_semantic_patterns.sql": 62,
+    "incoming_templates.sql": 63,
+    # writes into key_paths + semantic_patterns + incoming_templates
+    "connector_websub_rules.sql": 64,
+    # AWE policy bindings reference registers and intake forms
+    "g2p_registry_awe_policy_configurations.sql": 70,
+    # outbound templates last
+    "outgoing_templates.sql": 80,
 }
 def key(path):
-    return (rank.get(os.path.basename(path), 50), path)
+    return (rank.get(os.path.basename(path), 500), path)
 for path in sorted(files, key=key):
     print(path)
 '

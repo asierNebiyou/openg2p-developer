@@ -70,6 +70,18 @@ else:
                 images[m.group(1)] = m.group(2).strip().strip("'\"")
 
 pairs: list[tuple[str, str]] = []
+
+# The registry-platform version the product images are built FROM. Not an image
+# reference itself, so it is not in KEY_TO_ENV — but it belongs in .env so the
+# build scripts have one source of truth.
+if yaml is not None:
+    rp = (yaml.safe_load(text) or {}).get("registry_platform_version")
+else:
+    m = re.search(r"^registry_platform_version:\s*(\S+)\s*$", text, re.M)
+    rp = m.group(1) if m else None
+if rp:
+    pairs.append(("REGISTRY_PLATFORM_VERSION", str(rp).strip().strip("'\"")))
+
 for key, env_name in KEY_TO_ENV.items():
     if key in images:
         pairs.append((env_name, str(images[key])))
@@ -81,7 +93,8 @@ if not pairs:
 marker_begin = "# BEGIN IMAGE PINS (managed by make sync-images)"
 marker_end = "# END IMAGE PINS"
 
-block_lines = [marker_begin, "# Sourced from versions.yaml — do not hand-edit; run: make sync-images"]
+block_comment = "# Sourced from versions.yaml — do not hand-edit; run: make sync-images"
+block_lines = [marker_begin, block_comment]
 for env_name, image in pairs:
     block_lines.append(f"{env_name}={image}")
 block_lines.append(marker_end)
@@ -92,20 +105,35 @@ block_re = re.compile(
     re.DOTALL,
 )
 
+# The managed block must be removed as a WHOLE before anything else. Stripping
+# the BEGIN/END marker lines first (as this script used to do) left block_re
+# unmatchable, so the "# Sourced from versions.yaml" comment that lives BETWEEN
+# the markers survived every run: it is neither a marker line nor a managed
+# `VAR=` line. Each `make sync-images` therefore leaked one more copy of it.
 for target in targets:
     original = target.read_text(encoding="utf-8") if target.exists() else ""
-    # Drop any legacy loose IMAGE lines that we now manage in the block.
+
+    # 1. Drop the previous managed block in one piece (markers + inner comment
+    #    + pins) so re-running is idempotent.
+    body = block_re.sub("", original)
+
+    # 2. Clean up what earlier buggy runs leaked, plus legacy loose IMAGE lines
+    #    and orphaned markers from hand-editing.
     managed = {name for name, _ in pairs}
     kept: list[str] = []
-    for line in original.splitlines(keepends=True):
+    for line in body.splitlines(keepends=True):
         m = re.match(r"^([A-Za-z0-9_]+)=", line)
         if m and m.group(1) in managed:
             continue
         if marker_begin in line or marker_end in line:
             continue
+        if line.strip() == block_comment:
+            continue
         kept.append(line)
-    body = "".join(kept)
-    body = block_re.sub("", body).rstrip() + "\n\n" + block
+
+    # 3. Collapse the blank runs those removals leave behind.
+    body = re.sub(r"\n{3,}", "\n\n", "".join(kept))
+    body = body.rstrip() + "\n\n" + block
     target.write_text(body, encoding="utf-8")
     print(f"Synced {len(pairs)} image pins → {target}")
 PY

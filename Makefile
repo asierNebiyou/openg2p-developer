@@ -14,7 +14,7 @@ COMPOSE_PROFILES := --profile infra --profile with-redis --profile commons --pro
 
 .DEFAULT_GOAL := help
 
-.PHONY: help setup clone generate generate-docker sync-images install-odoo install-iam install-awe install-master-data install-registry-extension install-registry-ui install-registry-db-seed install-pbms-bg-tasks install-bridge install-spar \
+.PHONY: help setup clone generate generate-docker sync-images check-pins install-odoo install-iam install-awe install-master-data install-registry-extension install-registry-ui install-registry-db-seed install-pbms-bg-tasks install-bridge install-spar \
 	infra-ensure infra-up keycloak-init infra-down up down status logs clean \
 	pbms-setup pbms-full-setup pbms-init init-pbms-bg-tasks init-bridge init-spar seed-spar-farmer-links \
 	pbms-run pbms-stop free-native-stack free-spar-ports \
@@ -48,6 +48,9 @@ generate-docker: ## Generate Docker-network env files under generated/**/docker/
 
 sync-images: ## Sync versions.yaml image pins into .env / .env.example
 	@bash scripts/sync-image-env.sh
+
+check-pins: ## Verify deployment-pin coherence (platform pin vs variant repos, no floating tags)
+	@python3 scripts/check-pins.py
 
 install-odoo: ## Install Odoo 17 Python dependencies into a venv
 	@bash scripts/install-odoo-deps.sh
