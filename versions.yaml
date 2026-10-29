@@ -82,7 +82,7 @@ repos:
 # UI image below is published at this same version, so it must carry this tag —
 # a UI from a different platform build is the classic "blank dropdowns / 401"
 # failure. Check coherence with: make check-pins
-registry_platform_version: 1.2.2-rc.544
+registry_platform_version: 1.2.2-rc.557
 
 images:
   # Pins match rancher2.openg2p.org namespace nsr (Docker Hub), not GitLab.
@@ -90,7 +90,7 @@ images:
   staff_portal_ui: openg2p/openg2p-staff-portal-ui:1.2.0
 
   # Shared registry product UI image (Farmer + NSR each run their own container)
-  registry_staff_portal_ui: openg2p/openg2p-registry-staff-ui:1.2.2-rc.544
+  registry_staff_portal_ui: openg2p/openg2p-registry-staff-ui:1.2.2-rc.557
 
   # Commons
   iam_staff_portal_api: openg2p/iam-staff-portal-api:1.4.4-rc.125
@@ -98,11 +98,12 @@ images:
   awe_api: openg2p/openg2p-awe:1.2.2
   awe_ui: openg2p/openg2p-awe-ui:1.2.2
 
-  # Farmer Registry
-  farmer_registry_staff_api: openg2p/openg2p-farmer-registry-staff-api:1.2.0
-  farmer_registry_partner_api: openg2p/openg2p-farmer-registry-partner-api:1.2.0
-  farmer_registry_celery: openg2p/openg2p-farmer-registry-celery:1.2.0
-  farmer_registry_db_seed: openg2p/openg2p-farmer-registry-db-seed:1.2.0
+  # Farmer Registry -- 1.2.1-rc.190 is what the qa namespace runs (was pinned
+  # at 1.2.0, which is not what any deployed environment uses).
+  farmer_registry_staff_api: openg2p/openg2p-farmer-registry-staff-api:1.2.1-rc.190
+  farmer_registry_partner_api: openg2p/openg2p-farmer-registry-partner-api:1.2.1-rc.190
+  farmer_registry_celery: openg2p/openg2p-farmer-registry-celery:1.2.1-rc.190
+  farmer_registry_db_seed: openg2p/openg2p-farmer-registry-db-seed:1.2.1-rc.190
 
   # National Social Registry (Docker Hub — same tags as rancher2 nsr)
   nsr_staff_api: openg2p/openg2p-mowsa-nsr-staff-portal-api:1.2.1-rc.335
@@ -136,7 +137,7 @@ images:
   # Pinned: `latest` made the local stack non-reproducible across rebuilds.
   minio: minio/minio:RELEASE.2025-04-22T22-12-26Z
   keycloak: quay.io/keycloak/keycloak:26.0
-  id_generator: openg2p/openg2p-id-generator:1.0.0
+  id_generator: openg2p/openg2p-id-generator:1.1.2
 
 profiles:
   infra:
