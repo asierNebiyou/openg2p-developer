@@ -51,26 +51,6 @@ SERVICES=(
   "db-seed:${SEED_IMAGE}"
 )
 
-need_build=0
-for entry in "${SERVICES[@]}"; do
-  img="${entry#*:}"
-  if ! docker image inspect "$img" >/dev/null 2>&1; then
-    echo "Missing local image: ${img}"
-    need_build=1
-  fi
-done
-
-if [[ "${FORCE_VSSS_BUILD:-0}" != "1" && "$need_build" -eq 0 ]]; then
-  echo "VSSS images already present locally (set FORCE_VSSS_BUILD=1 to rebuild)."
-  exit 0
-fi
-
-# The registry-platform version the thin images extend. Each Dockerfile already
-# declares `ARG RP_VERSION=<pin>`; only override it deliberately. Taking the
-# default from the Dockerfile keeps this script from silently disagreeing with
-# the VSSS repo's own pin (and with its Helm chart, which CI checks in lockstep).
-RP_VERSION="${RP_VERSION:-${REGISTRY_PLATFORM_VERSION:-}}"
-
 # Build for amd64 regardless of the host.
 #
 # These images are thin layers over openg2p/openg2p-registry-{staff-api,
@@ -86,8 +66,39 @@ RP_VERSION="${RP_VERSION:-${REGISTRY_PLATFORM_VERSION:-}}"
 # missing. There is no arm64 base to build against, so arm64 is never a valid
 # choice here — the images run under Rosetta instead. BUILD_PLATFORM is still
 # honoured if set, for the day the platform publishes multi-arch bases.
+#
+# Same footgun at *run* time: if an older arm64 tag is left locally while
+# DOCKER_DEFAULT_PLATFORM=linux/amd64 (required in .env), compose fails with
+#   image ... was found but its platform (linux/arm64) does not match ... (linux/amd64)
 BUILD_PLATFORM="${BUILD_PLATFORM:-linux/amd64}"
 export BUILD_PLATFORM
+WANT_ARCH="${BUILD_PLATFORM##*/}"
+
+need_build=0
+for entry in "${SERVICES[@]}"; do
+  img="${entry#*:}"
+  if ! docker image inspect "$img" >/dev/null 2>&1; then
+    echo "Missing local image: ${img}"
+    need_build=1
+    continue
+  fi
+  have_arch="$(docker image inspect "$img" --format '{{.Architecture}}' 2>/dev/null || true)"
+  if [[ -n "$have_arch" && "$have_arch" != "$WANT_ARCH" ]]; then
+    echo "Wrong arch for ${img}: have ${have_arch}, need ${WANT_ARCH} (will rebuild)"
+    need_build=1
+  fi
+done
+
+if [[ "${FORCE_VSSS_BUILD:-0}" != "1" && "$need_build" -eq 0 ]]; then
+  echo "VSSS images already present locally for ${BUILD_PLATFORM} (set FORCE_VSSS_BUILD=1 to rebuild)."
+  exit 0
+fi
+
+# The registry-platform version the thin images extend. Each Dockerfile already
+# declares `ARG RP_VERSION=<pin>`; only override it deliberately. Taking the
+# default from the Dockerfile keeps this script from silently disagreeing with
+# the VSSS repo's own pin (and with its Helm chart, which CI checks in lockstep).
+RP_VERSION="${RP_VERSION:-${REGISTRY_PLATFORM_VERSION:-}}"
 
 echo "============================================="
 echo " Building VSSS Docker images"
