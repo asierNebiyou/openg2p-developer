@@ -26,6 +26,15 @@ MINIO_ENDPOINT="${MINIO_ENDPOINT:-localhost:9000}"
 MINIO_ROOT_USER="${MINIO_ROOT_USER:-admin}"
 MINIO_ROOT_PASSWORD="${MINIO_ROOT_PASSWORD:-adminsecret}"
 KEYCLOAK_URL="${KEYCLOAK_URL:-http://localhost:8080}"
+# IAM fetches OIDC metadata with Python httpx. On WSL/macOS, `localhost` often
+# resolves to IPv6 ::1 first while Keycloak is only on IPv4, causing
+# httpx.ConnectError. Docker Compose hostnames (keycloak) also fail for native IAM.
+KEYCLOAK_METADATA_URL="${KEYCLOAK_METADATA_URL:-${KEYCLOAK_URL}}"
+if [[ "${KEYCLOAK_METADATA_URL}" == *localhost* ]]; then
+  KEYCLOAK_METADATA_URL="${KEYCLOAK_METADATA_URL//localhost/127.0.0.1}"
+elif [[ "${KEYCLOAK_METADATA_URL}" == *://keycloak* ]]; then
+  KEYCLOAK_METADATA_URL="http://127.0.0.1:${KEYCLOAK_PORT:-8080}"
+fi
 
 PBMS_HTTP_PORT="${PBMS_HTTP_PORT:-8069}"
 PBMS_STAFF_API_PORT="${PBMS_STAFF_API_PORT:-8050}"
@@ -293,6 +302,7 @@ REGISTRY_OIDC_AUDIENCES="$(bash -c 'source "'"${ROOT_DIR}"'/scripts/lib/extensio
 render "${ROOT_DIR}/templates/iam-data/login_providers.json.tpl" \
   "${GENERATED_DIR}/iam/data/login_providers.json" \
   "{{KEYCLOAK_URL}}" "${KEYCLOAK_URL}" \
+  "{{KEYCLOAK_METADATA_URL}}" "${KEYCLOAK_METADATA_URL}" \
   "{{IAM_STAFF_PORT}}" "${IAM_STAFF_PORT}" \
   "{{STAFF_PORTAL_UI_PORT}}" "${STAFF_PORTAL_UI_PORT}" \
   "{{KEYCLOAK_IAM_CLIENT_SECRET}}" "${KEYCLOAK_IAM_CLIENT_SECRET}" \

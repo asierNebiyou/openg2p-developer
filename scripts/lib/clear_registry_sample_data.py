@@ -48,7 +48,17 @@ NSR_TABLES = [
     "g2p_register_individuals",
 ]
 
-VSSS_TABLES = NSR_TABLES
+VSSS_TABLES = [
+    "g2p_completion_score_computation_queue",
+    "g2p_register_scores",
+    "g2p_register_household_programs",
+    "g2p_register_household_shocks",
+    "g2p_register_individual_programs",
+    "g2p_register_individual_disability",
+    "g2p_register_individual_livestock",
+    "g2p_register_households",
+    "g2p_register_individuals",
+]
 
 TABLES_BY_VARIANT = {
     "farmer-registry": FARMER_TABLES,

@@ -36,6 +36,41 @@ VSSS_REGISTRY_UI_PORT="${VSSS_REGISTRY_UI_PORT:-3020}"
 STAFF_PORTAL_UI_PORT="${STAFF_PORTAL_UI_PORT:-3000}"
 REGISTRY_AUTH_ENABLED="${REGISTRY_AUTH_ENABLED:-false}"
 
+# Docker IAM networking vs browser URLs:
+# - Fetch OIDC discovery via Compose DNS (keycloak), not 127.0.0.1.
+# - KC_HOSTNAME makes discovery advertise localhost for browsers.
+# - IAM must exchange codes / fetch JWKS on keycloak DNS — localhost:8080
+#   inside the IAM container is not Keycloak (host-gateway does not win over
+#   127.0.0.1 in /etc/hosts). Override back-channel endpoints on the provider.
+LOGIN_PROVIDERS_JSON="${GENERATED_DIR}/iam/data/login_providers.json"
+if [[ -f "${LOGIN_PROVIDERS_JSON}" ]]; then
+  python3 - "${LOGIN_PROVIDERS_JSON}" "${KEYCLOAK_PORT}" <<'PY'
+import json, sys
+path, kc_port = sys.argv[1], sys.argv[2]
+rows = json.load(open(path, encoding="utf-8"))
+base_kc = f"http://keycloak:{kc_port}/realms/staff"
+base_browser = f"http://localhost:{kc_port}/realms/staff"
+desired = {
+    "server_metadata_url": f"{base_kc}/.well-known/openid-configuration",
+    "authorization_endpoint": f"{base_browser}/protocol/openid-connect/auth",
+    "token_endpoint": f"{base_kc}/protocol/openid-connect/token",
+    "userinfo_endpoint": f"{base_kc}/protocol/openid-connect/userinfo",
+    "jwks_uri": f"{base_kc}/protocol/openid-connect/certs",
+}
+changed = False
+for row in rows:
+    for key, value in desired.items():
+        if row.get(key) != value:
+            row[key] = value
+            changed = True
+if changed:
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(rows, fh, indent=2)
+        fh.write("\n")
+    print(f"Rewrote Docker IAM IdP endpoints (browser auth=localhost, back-channel=keycloak:{kc_port})")
+PY
+fi
+
 mkdir -p \
   "${GENERATED_DIR}/farmer-registry/docker" \
   "${GENERATED_DIR}/national-social-registry/docker" \

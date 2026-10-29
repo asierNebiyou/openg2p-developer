@@ -135,12 +135,25 @@ docker_registry_ensure_ports() {
 
   echo "Checking host ports (auto-pick if busy) ..."
 
-  # Keep preferred UI layout stable: hub 3000 / farmer 3001 / nsr 3002.
-  # When a preferred port is busy, auto-pick must not steal another UI's preferred port.
+  # Keep preferred UI layout stable: hub 3000 / farmer 3001 / nsr 3002 / vsss 3020.
+  # When a preferred port is busy, auto-pick must not steal another service's port.
   _reserve_port 3000
   _reserve_port 3001
   _reserve_port 3002
   _reserve_port 3020
+  # IAM must not land on VSSS staff/partner (8021/8022) when 8020 is busy.
+  _reserve_port 8001
+  _reserve_port 8006
+  _reserve_port 8011
+  _reserve_port 8012
+  _reserve_port 8020
+  _reserve_port 8021
+  _reserve_port 8022
+  _reserve_port 8030
+  _reserve_port 8031
+  _reserve_port 8042
+  _reserve_port 8043
+  _reserve_port 8044
 
   ensure_host_port POSTGRES_PORT "${POSTGRES_PORT:-5433}" "Postgres"
   ensure_host_port REDIS_PORT "${REDIS_PORT:-6379}" "Redis"

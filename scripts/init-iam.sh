@@ -70,6 +70,23 @@ echo "============================================="
   python -m iam_staff_portal_api.main migrate
 )
 
+provider_count="$(
+  PGPASSWORD="${POSTGRES_PASSWORD}" psql -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT}" \
+    -U "${POSTGRES_SUPERUSER}" -d iam_staff -tAc \
+    "SELECT COUNT(*) FROM login_providers" 2>/dev/null || echo 0
+)"
+provider_count="$(echo "${provider_count}" | tr -d '[:space:]')"
+if [[ "${provider_count}" == "0" || -z "${provider_count}" ]]; then
+  echo "ERROR: iam_staff.login_providers is empty. Staff UI /api/login will fail." >&2
+  echo "Check generated/iam/data/login_providers.json and IAM_STAFF_DATA_DIR in generated/iam/staff-portal-api.env" >&2
+  exit 1
+fi
+echo "IAM login providers: ${provider_count}"
+
+# seed_if_empty does not update existing rows. Re-apply generated OIDC URLs
+# (IPv4 metadata fetch, current IAM callback port).
+bash "${ROOT_DIR}/scripts/iam-sync-login-providers.sh"
+
 "${ROOT_DIR}/scripts/iam-ensure-registry-variant-applications.sh"
 
 echo "IAM staff portal API initialized."

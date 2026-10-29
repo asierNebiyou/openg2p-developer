@@ -297,6 +297,12 @@ docker_registry_start_commons() {
   docker_registry_wait_http "http://localhost:${IAM_STAFF_PORT}/ping" "IAM staff API"
   docker_registry_wait_http "http://localhost:${AWE_API_PORT}/v1/awe/health" "AWE API"
   docker_registry_wait_staff_portal_hub
+  # IAM seed_if_empty never updates existing IdP rows; sync Docker metadata URL.
+  if [[ -x "${ROOT_DIR}/scripts/iam-sync-login-providers.sh" ]] || [[ -f "${ROOT_DIR}/scripts/iam-sync-login-providers.sh" ]]; then
+    echo "Syncing IAM login_providers URLs from generated JSON ..."
+    POSTGRES_HOST=localhost POSTGRES_PORT="${POSTGRES_PORT}" \
+      bash "${ROOT_DIR}/scripts/iam-sync-login-providers.sh" || true
+  fi
 }
 
 docker_registry_seed_awe_callback() {
@@ -448,14 +454,28 @@ docker_registry_ensure_infra_commons() {
   docker_registry_compose "${COMPOSE_FILES[@]}" --profile infra --profile with-redis \
     up -d --remove-orphans --pull missing
   bash "${ROOT_DIR}/scripts/infra-wait.sh"
-  # keycloak-init is idempotent but slow when attached. Skip when the staff
-  # realm already answers (typical docker-*-continue resume).
-  if curl -sf "http://localhost:${KEYCLOAK_PORT}/realms/staff" >/dev/null 2>&1; then
-    echo "  Keycloak realm 'staff' already present; skipping keycloak-init."
+  # keycloak-init is idempotent but slow when attached. Skip only when the
+  # IAM OIDC client exists — an empty realm import can leave /realms/staff up
+  # with no clients (login then returns "Client not found").
+  _kc_token="$(
+    curl -sf -X POST "http://localhost:${KEYCLOAK_PORT}/realms/master/protocol/openid-connect/token" \
+      -d "client_id=admin-cli" \
+      -d "username=${KEYCLOAK_ADMIN:-admin}" \
+      -d "password=${KEYCLOAK_ADMIN_PASSWORD:-admin}" \
+      -d "grant_type=password" \
+      | python3 -c 'import sys,json; print(json.load(sys.stdin).get("access_token",""))' 2>/dev/null || true
+  )"
+  if [[ -n "${_kc_token}" ]] \
+    && curl -sf -H "Authorization: Bearer ${_kc_token}" \
+         "http://localhost:${KEYCLOAK_PORT}/admin/realms/staff/clients?clientId=iam-staff-portal&max=1" \
+         | python3 -c 'import sys,json; raise SystemExit(0 if json.load(sys.stdin) else 1)' 2>/dev/null; then
+    echo "  Keycloak client iam-staff-portal present; skipping keycloak-init."
   else
+    echo "  Keycloak staff clients missing or incomplete; running keycloak-init ..."
     docker_registry_compose -f compose/docker-compose.infra.yml --profile infra \
       up keycloak-init --abort-on-container-exit --pull missing || true
   fi
+  unset _kc_token
 
   echo "Ensuring commons (IAM + AWE + Staff Portal hub) are up (no recreate) ..."
   docker_registry_compose "${COMPOSE_FILES[@]}" \
@@ -464,6 +484,11 @@ docker_registry_ensure_infra_commons() {
   docker_registry_wait_http "http://localhost:${IAM_STAFF_PORT}/ping" "IAM staff API"
   docker_registry_wait_http "http://localhost:${AWE_API_PORT}/v1/awe/health" "AWE API"
   docker_registry_wait_staff_portal_hub
+  if [[ -f "${ROOT_DIR}/scripts/iam-sync-login-providers.sh" ]]; then
+    echo "Syncing IAM login_providers URLs from generated JSON ..."
+    POSTGRES_HOST=localhost POSTGRES_PORT="${POSTGRES_PORT}" \
+      bash "${ROOT_DIR}/scripts/iam-sync-login-providers.sh" || true
+  fi
   docker_registry_seed_awe_callback
 }
 
