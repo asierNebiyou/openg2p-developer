@@ -135,7 +135,7 @@ services:
 
   farmer-registry-staff-ui:
     profiles: [farmer-registry, full]
-    image: ${REGISTRY_STAFF_PORTAL_UI_IMAGE:-openg2p/openg2p-registry-staff-portal-ui:1.1.1}
+    image: ${REGISTRY_STAFF_PORTAL_UI_IMAGE:-openg2p/openg2p-registry-staff-ui:1.2.2-rc.557}
     container_name: openg2p-farmer-registry-staff-ui
     extra_hosts:
       - "localhost:host-gateway"
@@ -280,7 +280,7 @@ services:
 
   nsr-registry-staff-ui:
     profiles: [nsr-registry, full]
-    image: ${REGISTRY_STAFF_PORTAL_UI_IMAGE:-openg2p/openg2p-registry-staff-portal-ui:1.1.1}
+    image: ${REGISTRY_STAFF_PORTAL_UI_IMAGE:-openg2p/openg2p-registry-staff-ui:1.2.2-rc.557}
     container_name: openg2p-nsr-registry-staff-ui
     extra_hosts:
       - "localhost:host-gateway"
@@ -413,7 +413,7 @@ services:
 
   vsss-registry-staff-api:
     profiles: [vsss-registry, full]
-    image: ${VSSS_REGISTRY_STAFF_API_IMAGE:-openg2p/openg2p-vsss-staff-portal-api:develop}
+    image: ${VSSS_REGISTRY_STAFF_API_IMAGE:-openg2p/openg2p-vsss-staff-portal-api:1.2.0}
     container_name: openg2p-vsss-registry-staff-api
     extra_hosts:
       - "localhost:host-gateway"
@@ -451,7 +451,7 @@ services:
 
   vsss-registry-partner-api:
     profiles: [vsss-registry, full]
-    image: ${VSSS_REGISTRY_PARTNER_API_IMAGE:-openg2p/openg2p-vsss-partner-api:develop}
+    image: ${VSSS_REGISTRY_PARTNER_API_IMAGE:-openg2p/openg2p-vsss-partner-api:1.2.0}
     container_name: openg2p-vsss-registry-partner-api
     depends_on:
       postgres:
@@ -471,7 +471,7 @@ services:
 
   vsss-registry-celery-worker:
     profiles: [vsss-registry, full]
-    image: ${VSSS_REGISTRY_CELERY_IMAGE:-openg2p/openg2p-vsss-celery:develop}
+    image: ${VSSS_REGISTRY_CELERY_IMAGE:-openg2p/openg2p-vsss-celery:1.2.0}
     container_name: openg2p-vsss-registry-celery-worker
     depends_on:
       postgres:
@@ -491,7 +491,7 @@ services:
 
   vsss-registry-celery-beat:
     profiles: [vsss-registry, full]
-    image: ${VSSS_REGISTRY_CELERY_IMAGE:-openg2p/openg2p-vsss-celery:develop}
+    image: ${VSSS_REGISTRY_CELERY_IMAGE:-openg2p/openg2p-vsss-celery:1.2.0}
     container_name: openg2p-vsss-registry-celery-beat
     depends_on:
       postgres:
@@ -507,7 +507,7 @@ services:
 
   vsss-registry-staff-ui:
     profiles: [vsss-registry, full]
-    image: ${REGISTRY_STAFF_PORTAL_UI_IMAGE:-openg2p/openg2p-registry-staff-portal-ui:1.1.1}
+    image: ${REGISTRY_STAFF_PORTAL_UI_IMAGE:-openg2p/openg2p-registry-staff-ui:1.2.2-rc.557}
     container_name: openg2p-vsss-registry-staff-ui
     extra_hosts:
       - "localhost:host-gateway"
@@ -527,7 +527,7 @@ services:
 
   vsss-registry-db-seed:
     profiles: [vsss-registry-seed]
-    image: ${VSSS_REGISTRY_DB_SEED_IMAGE:-openg2p/openg2p-vsss-db-seed:develop}
+    image: ${VSSS_REGISTRY_DB_SEED_IMAGE:-openg2p/openg2p-vsss-db-seed:1.2.0}
     container_name: openg2p-vsss-registry-db-seed
     depends_on:
       postgres:
