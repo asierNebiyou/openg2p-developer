@@ -57,7 +57,7 @@ repos:
 
   village_social_security_registry:
     url: https://github.com/asierNebiyou/openg2p-registry-vsss-extensions.git
-    ref: develop
+    ref: feat/vsss-1.2-inverted-build
     path: village-social-security-registry
     extension_path: openg2p-registry-vsss-extension
 
