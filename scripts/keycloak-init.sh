@@ -196,6 +196,7 @@ ensure_user() {
     echo "[keycloak-init] User '${username}' already exists"
   fi
 
+  echo "[keycloak-init]   ~ password for '${username}'"
   "${KCADM}" set-password -r "${KEYCLOAK_REALM}" \
     --username "${username}" \
     --new-password "${password}" \
@@ -210,18 +211,29 @@ ensure_dev_user() {
     "Local" \
     "Developer"
 
+  # Many silent kcadm add-roles calls — look hung without progress (3 clients × N roles).
+  local role_n="${#REGISTRY_STAFF_CLIENT_ROLES[@]}"
+  local total=$((role_n * 3 + 1))
+  local i=0
+  echo "[keycloak-init] Assigning registry roles to '${KEYCLOAK_DEV_USER}' (${total} kcadm calls; can take a few minutes) ..."
   for role in "${REGISTRY_STAFF_CLIENT_ROLES[@]}"; do
-    assign_client_role "${KEYCLOAK_DEV_USER}" "nsr-registry-staff-portal" "${role}"
-    assign_client_role "${KEYCLOAK_DEV_USER}" "farmer-registry-staff-portal" "${role}"
-    assign_client_role "${KEYCLOAK_DEV_USER}" "vsss-registry-staff-portal" "${role}"
+    for client in nsr-registry-staff-portal farmer-registry-staff-portal vsss-registry-staff-portal; do
+      i=$((i + 1))
+      echo "[keycloak-init]   [${i}/${total}] ${KEYCLOAK_DEV_USER} <- ${client}/${role}"
+      assign_client_role "${KEYCLOAK_DEV_USER}" "${client}" "${role}"
+    done
   done
-
+  i=$((i + 1))
+  echo "[keycloak-init]   [${i}/${total}] ${KEYCLOAK_DEV_USER} <- awe-admin-portal/AWE_ADMIN"
   assign_client_role "${KEYCLOAK_DEV_USER}" "awe-admin-portal" "AWE_ADMIN"
 }
 
 # AWE seeded policies use alex.carter (Stage 1) and nina.patel (Stage 2).
 ensure_awe_approver_users() {
   local username role
+  local role_n="${#AWE_APPROVER_ROLES[@]}"
+  local total=$((2 * role_n * 3))
+  local i=0
 
   echo "[keycloak-init] Ensuring AWE approver users (Op Admin + Tech Admin) ..."
 
@@ -230,11 +242,14 @@ ensure_awe_approver_users() {
   ensure_user "nina.patel" "${KEYCLOAK_AWE_APPROVER_PASSWORD}" \
     "nina.patel@email.com" "Nina" "Patel"
 
+  echo "[keycloak-init] Assigning AWE approver roles (${total} kcadm calls) ..."
   for username in alex.carter nina.patel; do
     for role in "${AWE_APPROVER_ROLES[@]}"; do
-      assign_client_role "${username}" "farmer-registry-staff-portal" "${role}"
-      assign_client_role "${username}" "nsr-registry-staff-portal" "${role}"
-      assign_client_role "${username}" "vsss-registry-staff-portal" "${role}"
+      for client in farmer-registry-staff-portal nsr-registry-staff-portal vsss-registry-staff-portal; do
+        i=$((i + 1))
+        echo "[keycloak-init]   [${i}/${total}] ${username} <- ${client}/${role}"
+        assign_client_role "${username}" "${client}" "${role}"
+      done
     done
   done
 }
