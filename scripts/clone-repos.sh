@@ -40,6 +40,12 @@ clone_repo() {
   local target="${OPENG2P_WORKSPACE}/${path}"
   if [[ -d "${target}/.git" ]]; then
     echo "==> Updating ${name} (${target})"
+    # Clones below are --single-branch, so the remote only tracks the ref it was
+    # first cloned at and `git fetch origin` never sees any other branch. When
+    # the pinned ref later changes, the checkout below then fails with
+    # "pathspec ... did not match any file(s) known to git" on a repo that looks
+    # perfectly healthy. Widen the refspec before fetching so a repin works.
+    git -C "$target" remote set-branches origin '*' 2>/dev/null || true
     if [[ -n "$depth" ]]; then
       git -C "$target" fetch --depth "$depth" origin "$ref" 2>/dev/null \
         || git -C "$target" fetch --tags --prune origin
