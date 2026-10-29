@@ -22,6 +22,7 @@ registry_variant_paths "$VARIANT"
 "${ROOT_DIR}/scripts/infra-wait.sh"
 "${ROOT_DIR}/scripts/id-generator-wait.sh"
 "${ROOT_DIR}/scripts/generate-config.sh" >/dev/null
+bash "${ROOT_DIR}/scripts/wait-auth-deps.sh"
 
 if [[ ! -d "$API_DIR" ]]; then
   echo "Registry platform not found at ${REGISTRY_ROOT}. Run: make clone" >&2
@@ -82,6 +83,7 @@ IAM_ENV="${ROOT_DIR}/generated/iam/staff-portal-api.env"
 if [[ -f "$IAM_ENV" && -x "${IAM_API_DIR}/venv/bin/python" ]]; then
   run_service "iam-staff-api" "$IAM_API_DIR" "$IAM_ENV" \
     python -m iam_staff_portal_api.main run
+  WAIT_IAM=1 bash "${ROOT_DIR}/scripts/wait-auth-deps.sh"
 fi
 
 MASTER_DATA_ENV="${GENERATED_DIR}/master-data-api.env"
@@ -89,7 +91,7 @@ if [[ -f "$MASTER_DATA_ENV" && -x "${MASTER_DATA_API_DIR}/venv/bin/python" ]]; t
   # Prefer package ASGI path — fastapi-common "run" with worker_type=uvicorn
   # looks for repo-root main:app, which this service does not ship.
   run_service "${VARIANT}-master-data-api" "$MASTER_DATA_API_DIR" "$MASTER_DATA_ENV" \
-    bash -c 'exec uvicorn openg2p_gen2_master_data.main:app --host "${GEN2_MASTER_DATA_API_HOST:-0.0.0.0}" --port "${GEN2_MASTER_DATA_API_PORT:-${UVICORN_PORT}}" --log-level info'
+    bash -c 'exec uvicorn openg2p_gen2_master_data.main:app --host "${MASTER_DATA_API_APP_HOST:-${GEN2_MASTER_DATA_API_HOST:-0.0.0.0}}" --port "${MASTER_DATA_API_APP_PORT:-${GEN2_MASTER_DATA_API_PORT:-${UVICORN_PORT}}}" --log-level info'
 fi
 
 run_service "${VARIANT}-staff-api" "$API_DIR" "${GENERATED_DIR}/staff-portal-api.env" \

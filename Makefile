@@ -22,7 +22,7 @@ COMPOSE_PROFILES := --profile infra --profile with-redis --profile commons --pro
 	verify-native-stack verify-pbms verify-registry verify-bridge verify-spar retry-bridge-fa \
 	farmer-registry-run nsr-registry-run vsss-registry-run bridge-run spar-run iam-run awe-run \
 	farmer-setup farmer-registry-init farmer-registry-migrate farmer-registry-seed farmer-registry-fix-seed-enums farmer-registry-validate-seed \
-	nsr-setup nsr-registry-init nsr-registry-migrate nsr-registry-seed vsss-setup vsss-registry-init vsss-registry-migrate vsss-registry-seed seed-registry iam-init awe-init master-data-init master-data-seed \
+	nsr-setup nsr-registry-init nsr-registry-migrate nsr-registry-seed vsss-setup vsss-registry-init vsss-registry-migrate vsss-registry-seed seed-registry iam-init iam-sync-login-providers awe-init master-data-init master-data-seed \
 	extension-package extension-setup extension-run extension-init extension-migrate extension-seed clone-profiles \
 	up-infra up-pbms up-farmer-registry up-nsr-registry up-vsss-registry up-farmer-registry-seed up-nsr-registry-seed up-vsss-registry-seed up-bridge up-spar up-full \
 	docker-farmer-up docker-nsr-up docker-vsss-up docker-vsss-build docker-registry-up docker-registry-init \
@@ -85,6 +85,9 @@ install-master-data: ## Install Master Data API + db-seed Python dependencies
 
 iam-init: generate ## Migrate IAM schema, seed login providers, and sync variant registry applications
 	@bash scripts/init-iam.sh
+
+iam-sync-login-providers: generate ## Update iam_staff.login_providers OIDC URLs from generated JSON (no migrate)
+	@bash scripts/iam-sync-login-providers.sh
 
 awe-init: generate ## Initialise AWE schema and registry webhook callback secret
 	@bash scripts/init-awe.sh
@@ -221,15 +224,15 @@ up-vsss-registry: docker-vsss-up ## Docker VSSS only: infra + IAM + AWE + VSSS +
 
 up-farmer-registry-seed: generate-docker infra-up ## Run Farmer Registry db-seed container (after migrate)
 	@bash -c 'set -a; source .env; set +a; export USE_EXTERNAL_REDIS=false; \
-		$(COMPOSE) $(COMPOSE_FILES) --profile farmer-registry-seed run --rm --no-deps farmer-registry-db-seed'
+		$(COMPOSE) $(COMPOSE_FILES) --profile infra --profile with-redis --profile farmer-registry-seed run --rm --no-deps farmer-registry-db-seed'
 
 up-nsr-registry-seed: generate-docker infra-up ## Run NSR db-seed container (after migrate)
 	@bash -c 'set -a; source .env; set +a; export USE_EXTERNAL_REDIS=false; \
-		$(COMPOSE) $(COMPOSE_FILES) --profile nsr-registry-seed run --rm --no-deps nsr-registry-db-seed'
+		$(COMPOSE) $(COMPOSE_FILES) --profile infra --profile with-redis --profile nsr-registry-seed run --rm --no-deps nsr-registry-db-seed'
 
 up-vsss-registry-seed: generate-docker infra-up ## Run VSSS db-seed container (after migrate)
 	@bash -c 'set -a; source .env; set +a; export USE_EXTERNAL_REDIS=false; \
-		$(COMPOSE) $(COMPOSE_FILES) --profile vsss-registry-seed run --rm --no-deps vsss-registry-db-seed'
+		$(COMPOSE) $(COMPOSE_FILES) --profile infra --profile with-redis --profile vsss-registry-seed run --rm --no-deps vsss-registry-db-seed'
 
 up-bridge: generate infra-up ## Start infra + containerized G2P Bridge (if images exist)
 	@$(COMPOSE) $(COMPOSE_FILES) --profile bridge up -d

@@ -34,8 +34,25 @@ extension_manifest_workspace() {
 
 extension_manifest_file_for_variant() {
   local variant="$1"
-  local workspace
+  local workspace manifest keyed
   workspace="$(extension_manifest_workspace)"
+  # Prefer a product-repo directory that matches the name (custom packages and
+  # builtins live as workspace/<repo>/.openg2p-extension.yaml).
+  if [[ -f "${workspace}/${variant}/.openg2p-extension.yaml" ]]; then
+    echo "${workspace}/${variant}/.openg2p-extension.yaml"
+    return 0
+  fi
+  # Also allow looking up by the YAML `variant:` key (e.g. vsss →
+  # village-social-security-registry/.openg2p-extension.yaml).
+  shopt -s nullglob
+  for manifest in "${workspace}"/*/.openg2p-extension.yaml; do
+    keyed="$(extension_manifest_get "$manifest" "variant")"
+    if [[ "$keyed" == "$variant" ]]; then
+      echo "$manifest"
+      return 0
+    fi
+  done
+  # Expected path for error messages when nothing matches.
   echo "${workspace}/${variant}/.openg2p-extension.yaml"
 }
 
@@ -57,12 +74,20 @@ extension_manifest_exists() {
 }
 
 extension_manifest_list_variants() {
-  local workspace manifest variant
+  # Custom extension packages only. Built-in farmer / NSR / VSSS are rendered
+  # separately in generate-config.sh and must not be re-processed here (their
+  # YAML `variant:` key is a short token like `vsss`, which is not the product
+  # directory name).
+  local workspace manifest variant product_dir
   workspace="$(extension_manifest_workspace)"
   shopt -s nullglob
   for manifest in "${workspace}"/*/.openg2p-extension.yaml; do
+    product_dir="$(basename "$(dirname "$manifest")")"
+    if extension_manifest_is_builtin_variant "$product_dir"; then
+      continue
+    fi
     variant="$(extension_manifest_get "$manifest" "variant")"
-    [[ -n "$variant" ]] || variant="$(basename "$(dirname "$manifest")")"
+    [[ -n "$variant" ]] || variant="$product_dir"
     printf '%s\n' "$variant"
   done
 }

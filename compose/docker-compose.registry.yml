@@ -20,9 +20,9 @@ services:
     env_file:
       - ../generated/farmer-registry/docker/master-data-api.env
     environment:
-      GEN2_MASTER_DATA_API_HOST: "0.0.0.0"
-      GEN2_MASTER_DATA_API_PORT: "8000"
-      GEN2_MASTER_DATA_API_NO_OF_WORKERS: "2"
+      MASTER_DATA_API_APP_HOST: "0.0.0.0"
+      MASTER_DATA_API_APP_PORT: "8000"
+      MASTER_DATA_API_NO_OF_WORKERS: "2"
     ports:
       - "${MASTER_DATA_API_PORT:-8042}:8000"
     healthcheck:
@@ -167,9 +167,9 @@ services:
     env_file:
       - ../generated/national-social-registry/docker/master-data-api.env
     environment:
-      GEN2_MASTER_DATA_API_HOST: "0.0.0.0"
-      GEN2_MASTER_DATA_API_PORT: "8000"
-      GEN2_MASTER_DATA_API_NO_OF_WORKERS: "2"
+      MASTER_DATA_API_APP_HOST: "0.0.0.0"
+      MASTER_DATA_API_APP_PORT: "8000"
+      MASTER_DATA_API_NO_OF_WORKERS: "2"
     ports:
       - "${NSR_MASTER_DATA_API_PORT:-8043}:8000"
     healthcheck:
@@ -394,9 +394,9 @@ services:
     env_file:
       - ../generated/village-social-security-registry/docker/master-data-api.env
     environment:
-      GEN2_MASTER_DATA_API_HOST: "0.0.0.0"
-      GEN2_MASTER_DATA_API_PORT: "8000"
-      GEN2_MASTER_DATA_API_NO_OF_WORKERS: "2"
+      MASTER_DATA_API_APP_HOST: "0.0.0.0"
+      MASTER_DATA_API_APP_PORT: "8000"
+      MASTER_DATA_API_NO_OF_WORKERS: "2"
     ports:
       - "${VSSS_MASTER_DATA_API_PORT:-8044}:8000"
     healthcheck:

@@ -130,8 +130,11 @@ for entry in "${SERVICES[@]}"; do
 
   echo "--- ${svc} -> ${img}"
   # Repo-root context: thin Dockerfiles COPY the prebuilt wheel from docker/.build-wheels/.
+  # --pull=false: use the local base image when Hub metadata checks flake
+  # (context deadline exceeded) even though the pin is already present.
   docker build \
     --platform "${BUILD_PLATFORM}" \
+    --pull=false \
     "${build_args[@]}" \
     -f "$dockerfile" \
     -t "$img" \

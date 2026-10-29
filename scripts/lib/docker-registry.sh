@@ -115,6 +115,84 @@ docker_registry_wait_http() {
   return 1
 }
 
+# Docker Hub (and GitLab registry) often flake with "context deadline exceeded"
+# mid-`compose up`. Pull missing images up-front with retries, then start with
+# `--pull missing` so a transient Hub blip does not abort the whole stack.
+docker_registry_pull_image() {
+  local img="$1"
+  local attempts="${2:-6}"
+  local i delay
+
+  [[ -n "$img" ]] || return 0
+  if docker image inspect "$img" >/dev/null 2>&1; then
+    echo "  present: ${img}"
+    return 0
+  fi
+
+  for i in $(seq 1 "$attempts"); do
+    echo "  pulling ${img} (attempt ${i}/${attempts}) ..."
+    if docker pull "$img"; then
+      return 0
+    fi
+    delay=$((i * 8))
+    echo "  pull failed; retrying in ${delay}s ..."
+    sleep "$delay"
+  done
+  echo "ERROR: could not pull ${img} after ${attempts} attempts" >&2
+  return 1
+}
+
+docker_registry_ensure_variant_images() {
+  local variant="$1"
+  local -a images=()
+  local img
+
+  echo "Ensuring Docker images for ${variant} (pull with retries if missing) ..."
+
+  # Shared infra + commons
+  images+=(
+    "${ID_GENERATOR_IMAGE:-openg2p/openg2p-id-generator:1.0.0}"
+    "${IAM_STAFF_PORTAL_API_IMAGE:-openg2p/iam-staff-portal-api:1.3.0}"
+    "${AWE_API_IMAGE:-}"
+    "${AWE_UI_IMAGE:-}"
+    "${STAFF_PORTAL_UI_IMAGE:-}"
+    "${MASTER_DATA_API_IMAGE:-}"
+    "${REGISTRY_STAFF_PORTAL_UI_IMAGE:-}"
+  )
+
+  case "$variant" in
+    farmer)
+      images+=(
+        "${FARMER_REGISTRY_STAFF_API_IMAGE:-}"
+        "${FARMER_REGISTRY_PARTNER_API_IMAGE:-}"
+        "${FARMER_REGISTRY_CELERY_IMAGE:-}"
+        "${FARMER_REGISTRY_DB_SEED_IMAGE:-}"
+      )
+      ;;
+    nsr)
+      images+=(
+        "${NSR_REGISTRY_STAFF_API_IMAGE:-}"
+        "${NSR_REGISTRY_PARTNER_API_IMAGE:-}"
+        "${NSR_REGISTRY_CELERY_IMAGE:-}"
+        "${NSR_REGISTRY_DB_SEED_IMAGE:-}"
+      )
+      ;;
+    vsss)
+      images+=(
+        "${VSSS_REGISTRY_STAFF_API_IMAGE:-openg2p/openg2p-vsss-staff-portal-api:1.2.0}"
+        "${VSSS_REGISTRY_PARTNER_API_IMAGE:-openg2p/openg2p-vsss-partner-api:1.2.0}"
+        "${VSSS_REGISTRY_CELERY_IMAGE:-openg2p/openg2p-vsss-celery:1.2.0}"
+        "${VSSS_REGISTRY_DB_SEED_IMAGE:-openg2p/openg2p-vsss-db-seed:1.2.0}"
+      )
+      ;;
+  esac
+
+  for img in "${images[@]}"; do
+    [[ -n "$img" ]] || continue
+    docker_registry_pull_image "$img" || return 1
+  done
+}
+
 # Stop existing containers for this variant (+ shared infra/commons) before a clean up.
 # Volumes are kept (no -v); variant DBs are reset on the next up for a clean migrate+seed.
 docker_registry_down_variant() {
@@ -202,18 +280,20 @@ docker_registry_container_publishes() {
 docker_registry_start_infra() {
   echo "Starting infra (Postgres, Redis, MinIO, Keycloak, ID Generator) ..."
   echo "  Postgres host port: ${POSTGRES_PORT}  Redis: ${REDIS_PORT}  Keycloak: ${KEYCLOAK_PORT}"
+  # --pull missing: images were ensured (with retries) before this; do not abort
+  # the stack if Hub flakes on a re-check of an already-local pin.
   docker_registry_compose "${COMPOSE_FILES[@]}" --profile infra --profile with-redis \
-    up -d --remove-orphans --force-recreate
+    up -d --remove-orphans --force-recreate --pull missing
   bash "${ROOT_DIR}/scripts/infra-wait.sh"
   docker_registry_compose -f compose/docker-compose.infra.yml --profile infra \
-    up keycloak-init --abort-on-container-exit || true
+    up keycloak-init --abort-on-container-exit --pull missing || true
 }
 
 docker_registry_start_commons() {
   echo "Starting commons (IAM + AWE + Staff Portal hub) ..."
   docker_registry_compose "${COMPOSE_FILES[@]}" \
     --profile infra --profile with-redis --profile commons \
-    up -d --remove-orphans --force-recreate
+    up -d --remove-orphans --force-recreate --pull missing
   docker_registry_wait_http "http://localhost:${IAM_STAFF_PORT}/ping" "IAM staff API"
   docker_registry_wait_http "http://localhost:${AWE_API_PORT}/v1/awe/health" "AWE API"
   docker_registry_wait_staff_portal_hub
@@ -337,8 +417,12 @@ docker_registry_seed_variant() {
   local seed_service="$2"
   local label="$3"
   echo "Seeding ${label} (LOAD_SAMPLE_DATA=${LOAD_SAMPLE_DATA}) ..."
-  docker_registry_compose "${COMPOSE_FILES[@]}" --profile "${seed_profile}" \
-    run --rm --no-deps \
+  # Seed services depend_on postgres/minio (infra). Even with --no-deps, Compose
+  # still requires those services to be *defined* in the project, so the infra
+  # profile must be enabled alongside the seed profile.
+  docker_registry_compose "${COMPOSE_FILES[@]}" \
+    --profile infra --profile with-redis --profile "${seed_profile}" \
+    run --rm --no-deps --pull missing \
     -e "LOAD_SAMPLE_DATA=${LOAD_SAMPLE_DATA}" \
     -e "LOAD_GEO_DATA=${LOAD_GEO_DATA}" \
     -e "LOAD_TEMPLATES=${LOAD_TEMPLATES}" \
@@ -362,16 +446,21 @@ docker_registry_seed_variant() {
 docker_registry_ensure_infra_commons() {
   echo "Ensuring infra is up (no recreate) ..."
   docker_registry_compose "${COMPOSE_FILES[@]}" --profile infra --profile with-redis \
-    up -d --remove-orphans
+    up -d --remove-orphans --pull missing
   bash "${ROOT_DIR}/scripts/infra-wait.sh"
-  # keycloak-init is idempotent; ignore failures if realm already OK
-  docker_registry_compose -f compose/docker-compose.infra.yml --profile infra \
-    up keycloak-init --abort-on-container-exit || true
+  # keycloak-init is idempotent but slow when attached. Skip when the staff
+  # realm already answers (typical docker-*-continue resume).
+  if curl -sf "http://localhost:${KEYCLOAK_PORT}/realms/staff" >/dev/null 2>&1; then
+    echo "  Keycloak realm 'staff' already present; skipping keycloak-init."
+  else
+    docker_registry_compose -f compose/docker-compose.infra.yml --profile infra \
+      up keycloak-init --abort-on-container-exit --pull missing || true
+  fi
 
   echo "Ensuring commons (IAM + AWE + Staff Portal hub) are up (no recreate) ..."
   docker_registry_compose "${COMPOSE_FILES[@]}" \
     --profile infra --profile with-redis --profile commons \
-    up -d --remove-orphans
+    up -d --remove-orphans --pull missing
   docker_registry_wait_http "http://localhost:${IAM_STAFF_PORT}/ping" "IAM staff API"
   docker_registry_wait_http "http://localhost:${AWE_API_PORT}/v1/awe/health" "AWE API"
   docker_registry_wait_staff_portal_hub
@@ -398,6 +487,13 @@ docker_registry_continue_variant() {
 
   bash "${ROOT_DIR}/scripts/sync-image-env.sh"
   bash "${ROOT_DIR}/scripts/generate-docker-config.sh"
+  set -a
+  # shellcheck disable=SC1091
+  source "${ROOT_DIR}/.env"
+  set +a
+  export USE_EXTERNAL_REDIS=false
+
+  docker_registry_ensure_variant_images "$variant"
   docker_registry_ensure_infra_commons
 
   # Re-resolve ports after env sync / generate
@@ -413,11 +509,11 @@ docker_registry_continue_variant() {
   if [[ ${#recreate_flag[@]} -gt 0 ]]; then
     docker_registry_compose "${COMPOSE_FILES[@]}" \
       --profile infra --profile with-redis --profile commons --profile "${profile}" \
-      up -d --remove-orphans "${recreate_flag[@]}"
+      up -d --remove-orphans --pull missing "${recreate_flag[@]}"
   else
     docker_registry_compose "${COMPOSE_FILES[@]}" \
       --profile infra --profile with-redis --profile commons --profile "${profile}" \
-      up -d --remove-orphans
+      up -d --remove-orphans --pull missing
   fi
 
   docker_registry_wait_http "http://localhost:${master_data_port}/ping" "Master Data API" 90
@@ -470,6 +566,15 @@ docker_registry_up_variant() {
   # Regenerate after port selection so UI/IAM/AWE env match published ports.
   bash "${ROOT_DIR}/scripts/generate-docker-config.sh"
 
+  # Re-load .env after sync/generate so image pins used below match compose.
+  set -a
+  # shellcheck disable=SC1091
+  source "${ROOT_DIR}/.env"
+  set +a
+  export USE_EXTERNAL_REDIS=false
+
+  docker_registry_ensure_variant_images "$variant"
+
   docker_registry_start_infra
   docker_registry_start_commons
   docker_registry_seed_awe_callback
@@ -481,7 +586,7 @@ docker_registry_up_variant() {
   echo "Starting ${label} containers (master-data, staff API, partner API, Celery, UI) ..."
   docker_registry_compose "${COMPOSE_FILES[@]}" \
     --profile infra --profile with-redis --profile commons --profile "${profile}" \
-    up -d --remove-orphans --force-recreate
+    up -d --remove-orphans --force-recreate --pull missing
 
   docker_registry_wait_http "http://localhost:${master_data_port}/ping" "Master Data API" 90
   docker_registry_wait_http "http://localhost:${staff_port}/ping" "${label} staff API" 90
