@@ -40,10 +40,23 @@ services:
     profiles: [infra, commons, farmer-registry, nsr-registry, farmer-registry-seed, nsr-registry-seed, full]
     image: minio/minio:latest
     container_name: openg2p-minio
-    command: server /data --console-address ":9001"
+    # Buckets are plain directories under /data, so create them here and drop
+    # the separate minio-init container, which ran `mc mb` and always exited 1:
+    # its default bucket name was `default_bucket`, and S3 names cannot contain
+    # an underscore. Because that first `mc mb` ran under `set -e` with no
+    # `|| true`, it also skipped creating `templates` and `registrant-photos`,
+    # so on a fresh volume the seed's template upload had nowhere to write.
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        mkdir -p /data/"${MINIO_BUCKET_NAME:-default-bucket}" \
+                 /data/templates \
+                 /data/registrant-photos
+        exec minio server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-adminsecret}
+      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-default-bucket}
     ports:
       - "${MINIO_API_PORT:-9000}:9000"
       - "${MINIO_CONSOLE_PORT:-9001}:9001"
@@ -55,28 +68,6 @@ services:
       timeout: 5s
       retries: 10
     restart: unless-stopped
-
-  minio-init:
-    profiles: [infra, commons, farmer-registry, nsr-registry, farmer-registry-seed, nsr-registry-seed, full]
-    image: minio/mc:latest
-    container_name: openg2p-minio-init
-    depends_on:
-      minio:
-        condition: service_healthy
-    environment:
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-adminsecret}
-      MINIO_BUCKET_NAME: ${MINIO_BUCKET_NAME:-default_bucket}
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        set -e
-        mc alias set local http://minio:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"
-        mc mb --ignore-existing "local/$${MINIO_BUCKET_NAME}"
-        mc mb --ignore-existing local/templates
-        mc mb --ignore-existing local/registrant-photos || true
-        exit 0
-    restart: "no"
 
   keycloak:
     profiles: [infra, commons, pbms, farmer-registry, nsr-registry, farmer-registry-seed, nsr-registry-seed, bridge, spar, full]
