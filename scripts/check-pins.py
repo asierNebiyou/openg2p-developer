@@ -38,6 +38,27 @@ VARIANT_CHARTS = {
     "farmer_registry": None,  # no wrapper chart in this repo's workflow
 }
 
+MOVING_NAMES = {"latest", "develop", "main", "master", "edge", "nightly", "stable"}
+
+
+def is_moving_tag(ref: str) -> bool:
+    """True when the tag can point at different content over time.
+
+    :latest and :develop are the obvious ones, but a bare major or major.minor
+    tag moves too: asierneb/openg2p-nsr-celery:1.2 is whatever 1.2.x was pushed
+    last. Only a full major.minor.patch (optionally with a prerelease suffix) or
+    a digest is immutable in practice.
+    """
+    if "@sha256:" in ref:
+        return False
+    tag = ref.rsplit(":", 1)[-1] if ":" in ref.rsplit("/", 1)[-1] else ""
+    if not tag:
+        return True  # no tag at all == :latest
+    if tag.lower() in MOVING_NAMES:
+        return True
+    return bool(re.fullmatch(r"\d+(\.\d+)?", tag))
+
+
 problems: list[str] = []
 notes: list[str] = []
 
@@ -112,17 +133,25 @@ def main() -> int:
     else:
         ok(f"registry_staff_portal_ui tag {ui_tag} == platform pin")
 
-    print("\n3) no floating tags on registry / commons images")
-    floating = {
-        k: v for k, v in images.items()
-        if str(v).endswith((":latest", ":develop"))
-        and not k.startswith(("pbms", "g2p_bridge"))
-    }
-    if floating:
-        for k, v in sorted(floating.items()):
-            fail(f"images.{k} = {v} — floating tag, not reproducible")
+    print("\n3) no moving tags on the OpenG2P application images")
+    # Third-party infra (postgres, redis, keycloak, minio) commonly tracks a
+    # minor tag on purpose; that is a choice, not drift. Only the OpenG2P-built
+    # application images have to be immutable, because those are what a release
+    # is made of.
+    INFRA = {"postgres", "redis", "minio", "keycloak"}
+    moving_app, moving_infra = {}, {}
+    for k, v in images.items():
+        if not is_moving_tag(str(v)) or k.startswith(("pbms", "g2p_bridge")):
+            continue
+        (moving_infra if k in INFRA else moving_app)[k] = v
+    if moving_app:
+        for k, v in sorted(moving_app.items()):
+            fail(f"images.{k} = {v} — moving tag; a release cannot be reproduced from it")
     else:
-        ok("every registry/commons image is pinned to an immutable tag")
+        ok("every OpenG2P application image is pinned to an immutable tag")
+    for k, v in sorted(moving_infra.items()):
+        print(f"  note  images.{k} = {v} — tracks a minor tag (fine for infra, "
+              "pin it if you need byte-identical rebuilds)")
 
     print("\n4) each variant repo pins the platform in lockstep (Dockerfiles + chart)")
     for key, chart_rel in VARIANT_CHARTS.items():
