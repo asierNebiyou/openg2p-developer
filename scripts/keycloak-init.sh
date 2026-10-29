@@ -39,7 +39,26 @@ else
   exit 1
 fi
 
-KCADM="${KCADM:-/opt/keycloak/bin/kcadm.sh}"
+KCADM_BIN="${KCADM:-/opt/keycloak/bin/kcadm.sh}"
+
+# Every kcadm call spawns its own JVM, and one of them can wedge indefinitely
+# even while Keycloak itself answers the admin API in milliseconds — seen here
+# hanging 25+ minutes on a single add-roles, after which the whole bring-up sits
+# forever with the realm half-populated and no AWE approver users. Bound each
+# call so a stuck one fails the step instead of stalling the run. 120s is far
+# above a normal call (a few seconds, mostly JVM start).
+KCADM_TIMEOUT="${KCADM_TIMEOUT:-120}"
+kcadm() {
+  # `|| rc=$?` keeps set -e from aborting here, so callers that already handle
+  # a non-zero kcadm (|| true, if !, $(...)) keep behaving exactly as before.
+  local rc=0
+  timeout --kill-after=10s "${KCADM_TIMEOUT}s" "${KCADM_BIN}" "$@" || rc=$?
+  if (( rc == 124 || rc == 137 )); then
+    echo "[keycloak-init] kcadm timed out after ${KCADM_TIMEOUT}s: $*" >&2
+  fi
+  return "$rc"
+}
+KCADM=kcadm
 
 wait_for_keycloak() {
   local host="${KEYCLOAK_HOST:-keycloak}"

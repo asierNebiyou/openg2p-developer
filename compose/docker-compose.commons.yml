@@ -84,6 +84,17 @@ services:
       - ../generated/awe/docker/admin-ui.config.json:/usr/share/nginx/html/config.json:ro
     ports:
       - "${AWE_UI_PORT:-8031}:8080"
+    # The image's own healthcheck probes http://localhost:8080/. /etc/hosts maps
+    # localhost to both 127.0.0.1 and ::1, wget tries ::1 first, and the image's
+    # nginx only has `listen 8080;` (IPv4) — so the check always got "Connection
+    # refused" and the container sat `unhealthy` while serving traffic perfectly
+    # well on the mapped port. Probe the IPv4 loopback explicitly.
+    healthcheck:
+      test: ["CMD-SHELL", "wget --quiet --spider http://127.0.0.1:8080/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
 
   # Hub Staff Portal — single page with links to Farmer / NSR / other apps (from IAM).

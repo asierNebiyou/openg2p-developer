@@ -98,12 +98,36 @@ services:
       - "${KEYCLOAK_PORT:-8080}:8080"
     volumes:
       - ../keycloak/realm-export:/opt/keycloak/data/import:ro
+      # start-dev keeps its H2 store under /opt/keycloak/data/h2, which lives in
+      # the container filesystem. Without a volume here every `docker compose up`
+      # that recreates this container (each profile stage does) wipes the realm
+      # contents, and keycloak-init has to recreate ~11 clients, their roles and
+      # the dev users from scratch — several minutes per stage, during which IAM
+      # and the UIs are up against an empty realm. The realm-export mount cannot
+      # cover for it: staff-realm.json declares no clients and no users.
+      #
+      # Mounted at /data, NOT at /data/h2: the image ships /opt/keycloak/data
+      # (keycloak:root 0775) but not the h2/ subdir, which start-dev creates at
+      # runtime. Docker seeds a fresh named volume from the image directory it
+      # shadows, so /data inherits keycloak ownership and is writable; a volume
+      # at /data/h2 has no image dir to seed from, stays root-owned, and
+      # Keycloak dies with AccessDeniedException on keycloakdb.trace.db.
+      # The import bind mount above is nested deeper, so it still applies.
+      - keycloak_data:/opt/keycloak/data
     healthcheck:
       test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080"]
       interval: 10s
       timeout: 5s
-      retries: 20
-      start_period: 30s
+      retries: 30
+      # First boot against the persistent keycloak_data volume runs the full
+      # Liquibase migration (148 change sets) and the realm import before the
+      # port opens — measured at 127s here, against ~40s when H2 lived in the
+      # container filesystem and was thrown away each time. The old 30s grace
+      # had infra fail with "dependency failed to start: container
+      # openg2p-keycloak is unhealthy" while Keycloak was still starting
+      # normally. Later boots reuse the migrated volume and are quick; this
+      # only has to cover the first one.
+      start_period: 240s
     restart: unless-stopped
 
   id-generator:
@@ -172,6 +196,11 @@ services:
       - ../scripts/keycloak-init.sh:/keycloak-init.sh:ro
       - ../scripts/keycloak-ensure-extension-clients.sh:/keycloak-ensure-extension-clients.sh:ro
       - ../scripts/lib/extension-manifest.sh:/scripts/lib/extension-manifest.sh:ro
+      # extension-manifest.sh sources this and calls workspace_open; without it
+      # the source fails, workspace_open is undefined, and every manifest lookup
+      # resolves against / instead of the workspace — so the extension-client
+      # step finds no .openg2p-extension.yaml and silently does nothing.
+      - ../scripts/lib/workspace-path.sh:/scripts/lib/workspace-path.sh:ro
       - ../scripts/lib/keycloak-registry-roles.sh:/scripts/lib/keycloak-registry-roles.sh:ro
       - ${OPENG2P_WORKSPACE:-../openg2p-workspace}:/workspace:ro
     entrypoint: ["/bin/bash", "/keycloak-init.sh"]
@@ -180,3 +209,4 @@ services:
 volumes:
   postgres_data:
   minio_data:
+  keycloak_data:

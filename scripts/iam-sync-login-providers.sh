@@ -58,10 +58,18 @@ for row in rows:
         f"issuer = {lit(row['issuer'])}, "
         f"oauth_callback_url = {lit(row['oauth_callback_url'])}, "
         f"default_redirect_uri = {lit(row.get('default_redirect_uri'))}, "
+        # audiences was missing here, so a row seeded before the audience list
+        # changed kept its old value forever (seed_if_empty never updates).
+        # A stale multi-client list fails IAM's subset check — every listed
+        # audience must be present in the token — so a VSSS token was rejected
+        # against ["nsr-...","farmer-...","account"]. Generated config sets the
+        # local value ("[]", gate off, see extension_manifest_build_oidc_
+        # audiences_json_local); this makes the sync actually apply it.
+        f"audiences = {lit(row.get('audiences'))}, "
         f"client_secret = {lit(row.get('client_secret'))} "
         f"WHERE id = {provider_id};"
         f"SELECT id, server_metadata_url, authorization_endpoint, token_endpoint, "
-        f"userinfo_endpoint, jwks_uri, issuer, oauth_callback_url "
+        f"userinfo_endpoint, jwks_uri, issuer, oauth_callback_url, audiences "
         f"FROM login_providers WHERE id = {provider_id};"
     )
 sql = "\n".join(statements)
