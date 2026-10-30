@@ -468,6 +468,17 @@ docker_registry_seed_variant() {
   local seed_service="$2"
   local label="$3"
   echo "Seeding ${label} (LOAD_SAMPLE_DATA=${LOAD_SAMPLE_DATA}) ..."
+
+  # The AWE tables, callback_secret included, are created by the AWE service
+  # itself on startup (Base.metadata.create_all in its lifespan) — nothing else
+  # creates them. The seed runs with --no-deps, so without this wait it can
+  # reach the AWE step before AWE has ever started and fail with
+  # `relation "public.callback_secret" does not exist`.
+  if [[ "${AWE_DB_SEED_ENABLED:-true}" == "true" ]]; then
+    docker_registry_wait_http \
+      "http://localhost:${AWE_API_PORT:-8030}/v1/awe/health" "AWE API (schema owner)" 90
+  fi
+
   # Seed services depend_on postgres/minio (infra). Even with --no-deps, Compose
   # still requires those services to be *defined* in the project, so the infra
   # profile must be enabled alongside the seed profile.
