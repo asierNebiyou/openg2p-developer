@@ -103,64 +103,7 @@ run_service_stop "pbms-odoo" "odoo-bin" "${PBMS_ODOO_CONF}"
 run_service "pbms-odoo" "${ODOO_PATH}" "${ROOT_DIR}/.env" \
   python "${ODOO_PATH}/odoo-bin" -c "${PBMS_ODOO_CONF}"
 
-echo "==> Connector database + env ..."
-PGPASSWORD="${POSTGRES_PASSWORD}" psql \
-  -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT}" -U "${POSTGRES_SUPERUSER:-postgres}" -d postgres \
-  -tc "SELECT 1 FROM pg_database WHERE datname = '${CONNECTOR_DB_NAME}'" | grep -q 1 \
-  || PGPASSWORD="${POSTGRES_PASSWORD}" psql \
-    -h "${POSTGRES_HOST}" -p "${POSTGRES_PORT}" -U "${POSTGRES_SUPERUSER:-postgres}" -d postgres \
-    -c "CREATE DATABASE ${CONNECTOR_DB_NAME};"
-
-if [[ ! -d "${CONNECTOR_API_DIR}/.git" && ! -f "${CONNECTOR_API_DIR}/pyproject.toml" ]]; then
-  echo "Missing ${CONNECTOR_API_DIR}" >&2
-  exit 1
-fi
-
-cat > "${CONNECTOR_API_DIR}/.env" <<EOF
-CONNECTOR_APP_HOST=0.0.0.0
-CONNECTOR_APP_PORT=${CONNECTOR_PORT}
-CONNECTOR_LOG_LEVEL=INFO
-CONNECTOR_DB_DRIVER=postgresql+asyncpg
-CONNECTOR_DB_HOSTNAME=${POSTGRES_HOST}
-CONNECTOR_DB_PORT=${POSTGRES_PORT}
-CONNECTOR_DB_USERNAME=${POSTGRES_SUPERUSER:-postgres}
-CONNECTOR_DB_PASSWORD=${POSTGRES_PASSWORD}
-CONNECTOR_DB_DBNAME=${CONNECTOR_DB_NAME}
-CONNECTOR_PARTNER_INGEST_BASE_URL=http://127.0.0.1:${PARTNER_PORT}
-CONNECTOR_PARTNER_INGEST_TIMEOUT=30
-CONNECTOR_CELERY_BROKER_URL=redis://${REDIS_HOST}:${REDIS_PORT}/${CONNECTOR_REDIS_DB}
-CONNECTOR_CELERY_RESULT_BACKEND=redis://${REDIS_HOST}:${REDIS_PORT}/${CONNECTOR_REDIS_DB}
-CONNECTOR_WORKER_MAX_ATTEMPTS=5
-CONNECTOR_OTEL_ENABLED=false
-CONNECTOR_STORE_RUN_PAYLOADS=true
-CONNECTOR_STRICT_INCREMENTAL=true
-CONNECTOR_REGISTRY_DB_DSN=postgresql://${POSTGRES_SUPERUSER:-postgres}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/vsss_registry_db
-CONNECTOR_MASTER_DATA_DB_DSN=postgresql://${POSTGRES_SUPERUSER:-postgres}:${POSTGRES_PASSWORD}@${POSTGRES_HOST}:${POSTGRES_PORT}/vsss_master_data_db
-EOF
-
-if [[ ! -x "${CONNECTOR_API_DIR}/venv/bin/python" ]]; then
-  python3 -m venv "${CONNECTOR_API_DIR}/venv"
-fi
-(
-  cd "${CONNECTOR_API_DIR}"
-  # shellcheck disable=SC1091
-  source venv/bin/activate
-  pip install -e .
-)
-
-echo "==> Start connector API + Celery ..."
-run_service_stop "vsss-connector-api" "openg2p_connector_service.main" "${CONNECTOR_API_DIR}"
-run_service_stop "vsss-connector-worker" "openg2p_connector_service.worker worker" "${CONNECTOR_API_DIR}"
-run_service_stop "vsss-connector-beat" "openg2p_connector_service.worker beat" "${CONNECTOR_API_DIR}"
-
-run_service "vsss-connector-api" "${CONNECTOR_API_DIR}" "${CONNECTOR_API_DIR}/.env" \
-  "${CONNECTOR_API_DIR}/venv/bin/python" -m openg2p_connector_service.main
-run_service "vsss-connector-worker" "${CONNECTOR_API_DIR}" "${CONNECTOR_API_DIR}/.env" \
-  "${CONNECTOR_API_DIR}/venv/bin/celery" -A openg2p_connector_service.worker worker --loglevel=info
-run_service "vsss-connector-beat" "${CONNECTOR_API_DIR}" "${CONNECTOR_API_DIR}/.env" \
-  "${CONNECTOR_API_DIR}/venv/bin/celery" -A openg2p_connector_service.worker beat --loglevel=info --schedule=/tmp/celery-beat-vsss-connector.db
-
-echo "==> Checks ..."
+echo "==> PBMS checks (connector is separate) ..."
 fail=0
 check() {
   local name="$1" url="$2" expect="${3:-200}"
@@ -173,51 +116,9 @@ check() {
     fail=1
   fi
 }
-
-# First import of the connector (kafka, otel, celery) happens after the
-# process is backgrounded. A single curl then gets "connection refused"
-# and make exits before uvicorn binds. Wait, and stop early if it died.
-wait_for_url() {
-  local url="$1" expect="$2" tries="${3:-30}" pidfile="${4:-}"
-  local code i pid
-  for i in $(seq 1 "$tries"); do
-    code="$(curl -sS -o /dev/null -w '%{http_code}' --max-time 5 "$url" || true)"
-    if [[ " ${expect} " == *" ${code} "* ]]; then
-      return 0
-    fi
-    if [[ -n "$pidfile" && -f "$pidfile" ]]; then
-      pid="$(tr -d '[:space:]' <"$pidfile")"
-      if [[ -n "$pid" ]] && ! kill -0 "$pid" 2>/dev/null; then
-        echo "Process in ${pidfile} exited while waiting for ${url}" >&2
-        return 1
-      fi
-    fi
-    sleep 2
-  done
-  return 1
-}
-
-CONNECTOR_API_LOG="${ROOT_DIR}/generated/run/vsss-connector-api.log"
-CONNECTOR_API_PID="${ROOT_DIR}/generated/run/vsss-connector-api.pid"
-
-# Odoo can take a while to bind.
-wait_for_url "http://127.0.0.1:${PBMS_HTTP_PORT:-8069}/web/login" "200 303" 30 || true
-
-echo "==> Waiting for connector API on :${CONNECTOR_PORT} ..."
-if ! wait_for_url "http://127.0.0.1:${CONNECTOR_PORT}/health" 200 30 "$CONNECTOR_API_PID"; then
-  echo "Connector API did not stay up on :${CONNECTOR_PORT}." >&2
-  if [[ -f "$CONNECTOR_API_LOG" ]]; then
-    echo "---- ${CONNECTOR_API_LOG} (last 40 lines) ----" >&2
-    tail -n 40 "$CONNECTOR_API_LOG" >&2 || true
-  fi
-fi
-
 check "VSSS partner" "http://127.0.0.1:${PARTNER_PORT}/ping" 200
 check "PBMS staff API" "http://127.0.0.1:${PBMS_STAFF_API_PORT:-8050}/docs" 200
 check "PBMS Odoo" "http://127.0.0.1:${PBMS_HTTP_PORT:-8069}/web/login" 200
-check "Connector" "http://127.0.0.1:${CONNECTOR_PORT}/health" 200
-check "Connector ready" "http://127.0.0.1:${CONNECTOR_PORT}/health/ready" 200
-
 if pgrep -f "openg2p_bg_task_celery_beat_producers.main.celery_app beat" >/dev/null; then
   echo "OK  PBMS celery beat is running"
 else
@@ -230,17 +131,13 @@ else
   echo "FAIL PBMS celery worker is not running" >&2
   fail=1
 fi
-if pgrep -f "openg2p_connector_service.worker worker" >/dev/null; then
-  echo "OK  connector celery worker is running"
-else
-  echo "FAIL connector celery worker is not running" >&2
-  fail=1
-fi
-
 if [[ "$fail" -ne 0 ]]; then
-  echo "One or more checks failed. Logs: ${ROOT_DIR}/generated/run/" >&2
+  echo "PBMS checks failed. Logs: ${ROOT_DIR}/generated/run/" >&2
   exit 1
 fi
+
+echo "==> Connector only (retry later with: make vsss-connector-up) ..."
+bash "${ROOT_DIR}/scripts/vsss-connector-up.sh"
 
 echo
 echo "PBMS and the connector are up against Docker VSSS."
@@ -250,3 +147,4 @@ echo "  PBMS API     : http://127.0.0.1:${PBMS_STAFF_API_PORT:-8050}/docs"
 echo "  Connector    : http://127.0.0.1:${CONNECTOR_PORT}/health"
 echo "  Registry DB  : vsss_registry_db (PBMS Celery SR connection)"
 echo "SPAR and G2P Bridge are not started. Next step when you want disbursement."
+echo "If only the connector fails, rerun: make vsss-connector-up"
